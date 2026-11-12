@@ -1,0 +1,69 @@
+// Kilang Mountain Expedition 2026 — data model
+// SQLite for local/dev. To move to PostgreSQL/Supabase: change provider to
+// "postgresql" and point DATABASE_URL at your Postgres instance.
+
+generator client {
+  provider   = "prisma-client-js"
+  // Pure-TypeScript client (no native query-engine binary). The database is
+  // reached through a driver adapter — see src/lib/prisma.ts.
+  engineType = "client"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model TicketTier {
+  id            String         @id // slug: "standard" | "vip" | "student"
+  name          String
+  tagline       String
+  priceKobo     Int // Paystack amounts are in kobo (NGN x 100)
+  perks         String // JSON array of strings
+  featured      Boolean        @default(false)
+  active        Boolean        @default(true)
+  sortOrder     Int            @default(0)
+  registrations Registration[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Registration {
+  id          String  @id @default(cuid())
+  reference   String  @unique // Paystack transaction reference
+  accessToken String  @unique // secret token that unlocks the digital pass page
+  passId      String? @unique // KIL-2026-XXXX, assigned once payment is confirmed
+  status      String  @default("PENDING") // PENDING | PAID | FAILED
+
+  tierId     String
+  tier       TicketTier @relation(fields: [tierId], references: [id])
+  amountKobo Int
+
+  fullName       String
+  email          String
+  phone          String // normalised to 234XXXXXXXXXX
+  nextOfKinName  String
+  nextOfKinPhone String
+  bloodGroup     String
+  genotype       String
+  experience     String // BEGINNER | INTERMEDIATE | PRO
+  medicalNotes   String?
+  kitSize        String // S | M | L | XL | XXL
+
+  waiverAcceptedAt DateTime
+  paidAt           DateTime?
+  paystackTxId     String?
+  emailSentAt      DateTime?
+  smsSentAt        DateTime?
+
+  medicalCheckedAt DateTime? // Dec 30 medical checkup
+  musterCheckedAt  DateTime? // Dec 31 4:00 AM Popandi muster
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([fullName])
+  @@index([email])
+  @@index([phone])
+  @@index([status])
+}

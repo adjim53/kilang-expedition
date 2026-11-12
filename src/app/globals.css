@@ -1,0 +1,88 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 5rem;
+  }
+  body {
+    @apply bg-sand-50 font-sans text-ink antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+    font-optical-sizing: auto;
+  }
+  ::selection {
+    @apply bg-amber-500 text-ink;
+  }
+  :focus-visible {
+    @apply outline-none ring-2 ring-amber-500 ring-offset-2 ring-offset-sand-50;
+  }
+}
+
+@layer components {
+  .eyebrow {
+    @apply text-xs font-bold uppercase tracking-[0.22em];
+  }
+  .section {
+    @apply py-20 sm:py-28;
+  }
+  .section-title {
+    @apply text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl;
+  }
+  .field-label {
+    @apply mb-1.5 block text-sm font-semibold text-forest-900;
+  }
+  .field-input {
+    @apply block w-full rounded-xl border border-sand-300 bg-white px-4 py-3 text-base text-ink shadow-sm transition placeholder:text-forest-900/35 focus:border-forest-700 focus:outline-none focus:ring-2 focus:ring-forest-700/20;
+  }
+  .field-input[aria-invalid="true"] {
+    @apply border-clay-500 focus:border-clay-500 focus:ring-clay-500/20;
+  }
+  .field-error {
+    @apply mt-1.5 text-sm font-medium text-clay-600;
+  }
+}
+
+/* Leaflet: match the brand */
+.leaflet-container {
+  font-family: inherit;
+  background: #d5e9e6;
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  box-shadow: 0 18px 40px -18px rgba(10, 43, 41, 0.45);
+}
+.leaflet-popup-content {
+  margin: 14px 16px;
+  line-height: 1.45;
+}
+.kil-pin {
+  background: transparent;
+  border: 0;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
