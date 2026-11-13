@@ -1,6 +1,4 @@
-// Kilang Mountain Expedition 2026 — data model
-// SQLite for local/dev. To move to PostgreSQL/Supabase: change provider to
-// "postgresql" and point DATABASE_URL at your Postgres instance.
+// Kilang Mountain Expedition 2026 — data model (PostgreSQL, e.g. Neon on Vercel)
 
 generator client {
   provider   = "prisma-client-js"
@@ -10,8 +8,12 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  // Pooled connection — used by the running site.
+  url       = env("DATABASE_URL")
+  // Direct (non-pooled) connection — used by `prisma migrate`. Neon's Vercel
+  // integration sets both. Locally they can be the same URL.
+  directUrl = env("DATABASE_URL_UNPOOLED")
 }
 
 model TicketTier {

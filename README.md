@@ -4,16 +4,19 @@ Expedition portal and ticketing platform for the Kilang Mountain Expedition,
 Kaltungo, Gombe State, Nigeria (December 30–31, 2026).
 
 Next.js 15 (App Router, React 19, TypeScript) · Tailwind CSS · Framer Motion ·
-Prisma + SQLite · Paystack · Resend · Termii · Leaflet.
+Prisma + PostgreSQL · Paystack · Resend · Termii · Leaflet.
 
 ## Run it on your computer
 
-You need [Node.js 20 or newer](https://nodejs.org). In a terminal, inside this folder:
+You need [Node.js 22](https://nodejs.org) and a PostgreSQL database — the
+easiest is a free one from [neon.tech](https://neon.tech) (keep it separate
+from the production database). In a terminal, inside this folder:
 
 ```bash
 npm install
 copy .env.example .env      # macOS/Linux: cp .env.example .env
-npm run setup               # creates the database and the three ticket tiers
+#   → paste your database URL into DATABASE_URL and DATABASE_URL_UNPOOLED
+npm run setup               # creates the tables and the three ticket tiers
 npm run dev
 ```
 
@@ -94,58 +97,51 @@ Resend sending domain, an unapproved Termii sender ID, low SMS balance, a
 non-https public URL. Add `-- --strict` to exit with an error on any failure.
 
 `GET /api/health` reports database status and which integrations are
-configured (never the keys). The Docker image and the deploy workflow use it.
+configured (never the keys). CI uses it, and you can point an uptime monitor at it.
+
+## Deploying to Vercel
+
+Vercel builds straight from GitHub: every pull request gets a preview URL and
+every push to `main` goes to production. Each build runs `npm run vercel-build`,
+which applies database migrations, re-applies the ticket tiers from
+`src/data/tiers.ts`, then builds the site.
+
+One-time setup:
+
+1. **Import the project.** vercel.com → **Add New… → Project** → pick this
+   GitHub repository → **Deploy**. The first build fails until step 2 is done; that is expected.
+2. **Add a database.** In the Vercel project → **Storage** → **Create
+   Database** → **Neon (Postgres)** → connect it to the project. This sets
+   `DATABASE_URL` and `DATABASE_URL_UNPOOLED`. Turn on Neon's **preview
+   branching** option so preview deployments get their own copy of the
+   database instead of migrating production.
+3. **Add the app's settings.** Project → **Settings → Environment Variables**,
+   for Production (see `.env.example`):
+   `NEXT_PUBLIC_APP_URL` (your https address), `PAYSTACK_SECRET_KEY`,
+   `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`,
+   `TERMII_API_KEY`, `TERMII_SENDER_ID`, `ADMIN_SECRET_KEY`.
+   For Preview, use Paystack **test** keys and leave Resend/Termii empty so
+   previews never email or text real people.
+4. **Redeploy.** Deployments → latest → **⋯ → Redeploy**.
+5. **Domain (optional).** Settings → Domains. Then update `NEXT_PUBLIC_APP_URL`
+   and the Paystack webhook URL to match, and redeploy.
+
+Keys are read when the site runs, so after changing one, redeploy — no code change needed.
 
 ## CI/CD
 
-| Workflow | Runs on | Does |
+| What | When | Does |
 | --- | --- | --- |
-| `.github/workflows/ci.yml` | every pull request (and from `deploy.yml`) | lint · type-check · unit tests · build · smoke test of the built site (home page, waiver, `/api/health`, webhook rejects unsigned calls) · Docker image builds |
-| `.github/workflows/deploy.yml` | every push to `main`, or manually | runs CI → publishes `ghcr.io/<owner>/<repo>:latest` and `:<sha>` → calls your host's deploy hook → waits for `/api/health` on the live site |
+| `.github/workflows/ci.yml` | every pull request and push to `main` | lint · type-check · unit tests · `vercel-build` against a real Postgres · smoke test (home page, waiver, `/api/health`, webhook rejects unsigned calls, registration reaches the database) |
+| Vercel | every pull request / push to `main` | preview deployment / production deployment |
 | `.github/dependabot.yml` | weekly | dependency update pull requests |
 
-Set up once, in GitHub → repository → Settings:
+To stop broken code reaching production, protect `main`: GitHub → Settings →
+**Branches → Add branch ruleset** (or *Add rule*) for `main` → require a pull
+request and require the **Lint, type-check, test, build** status check. Then
+changes go in through pull requests, each with its own Vercel preview link.
 
-1. **Environments → New environment → `production`.** Optionally add yourself
-   as a required reviewer so every release waits for your approval.
-2. **Secrets and variables → Actions:**
-   - secret `DEPLOY_HOOK_URL` — your host's deploy-hook URL (Render: service →
-     Settings → Deploy Hook; Railway / Coolify have the same). Optional: without
-     it the image is still published and you redeploy by hand.
-   - variable `PRODUCTION_URL` — e.g. `https://kilangexpedition.ng`, for the
-     post-deploy health check.
-
-App secrets (Paystack, Resend, Termii, admin PIN) are set **on the host**,
-never in GitHub.
-
-## Deploying
-
-The app ships as a Docker image (`Dockerfile`). On start it applies the
-database schema, re-applies the ticket tiers from `src/data/tiers.ts`, and
-starts the site on `$PORT` (default 3000).
-
-SQLite is a file, so the host needs a **persistent volume mounted at `/data`**
-(the database is `/data/kilang.db`). Render (Docker service + disk), Railway
-(service + volume), Fly.io (volume) and any VPS work. Without a volume every
-redeploy wipes the registrations.
-
-Environment variables to set on the host — see `.env.example`:
-`NEXT_PUBLIC_APP_URL`, `PAYSTACK_SECRET_KEY`, `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`,
-`RESEND_API_KEY`, `EMAIL_FROM`, `TERMII_API_KEY`, `TERMII_SENDER_ID`,
-`ADMIN_SECRET_KEY`. They are read at runtime, so changing a key needs a restart,
-not a rebuild. Leave `DATABASE_URL` at its image default.
-
-Run it anywhere with Docker:
-
-```bash
-docker build -t kilang .
-docker run -p 3000:3000 -v kilang-data:/data --env-file .env.production kilang
-```
-
-On serverless hosts such as Vercel, use PostgreSQL instead — the three steps
-are at the top of `src/lib/prisma.ts`.
-
-The camera-based QR scanner only works over HTTPS (or on localhost).
+The camera-based QR scanner only works over HTTPS (Vercel provides it).
 
 ## Scripts
 
@@ -156,6 +152,7 @@ The camera-based QR scanner only works over HTTPS (or on localhost).
 | `npm run lint` · `npm run typecheck` | Code checks |
 | `npm test` | Unit tests (Vitest) |
 | `npm run check:integrations` | Live, read-only check of Paystack, Resend and Termii |
-| `npm run setup` | Create database + seed tiers |
+| `npm run setup` | Create the tables + seed tiers |
+| `npm run db:migrate` | After editing `prisma/schema.prisma`: create a new migration |
 | `npm run db:seed` | Re-apply tiers from `src/data/tiers.ts` |
 | `npm run db:studio` | Browse the database |

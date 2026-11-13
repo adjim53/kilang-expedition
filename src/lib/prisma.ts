@@ -1,35 +1,26 @@
-import path from "path";
 import { PrismaClient } from "@prisma/client";
-import { PrismaLibSQL } from "@prisma/adapter-libsql";
+import { PrismaPg } from "@prisma/adapter-pg";
 
 /**
- * Database client.
+ * Database client (PostgreSQL through the `pg` driver adapter).
  *
- * SQLite is reached through the libSQL driver adapter. Relative `file:` URLs
- * are resolved against the /prisma folder — the same place `prisma db push`
- * creates the database — so `DATABASE_URL="file:./dev.db"` means prisma/dev.db
- * everywhere.
- *
- * Moving to PostgreSQL / Supabase:
- *   1. prisma/schema.prisma → provider = "postgresql"
- *   2. npm i @prisma/adapter-pg pg   (and remove @prisma/adapter-libsql)
- *   3. Replace the adapter below with:
- *        new PrismaPg({ connectionString: process.env.DATABASE_URL })
+ * On Vercel, DATABASE_URL is the pooled Neon connection string, which suits
+ * serverless functions that open many short-lived connections.
  */
-function databaseUrl() {
-  const url = process.env.DATABASE_URL || "file:./dev.db";
-  if (!url.startsWith("file:")) return url;
-  const file = url.slice("file:".length);
-  if (path.isAbsolute(file)) return url;
-  return `file:${path.join(process.cwd(), "prisma", file)}`;
-}
-
 export function createPrismaClient() {
-  return new PrismaClient({ adapter: new PrismaLibSQL({ url: databaseUrl() }) });
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new Error("DATABASE_URL is not set");
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 }
 
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
-
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Created on first use, so importing this module never needs DATABASE_URL
+// (e.g. while Next.js collects page data at build time).
+export const prisma = new Proxy({} as PrismaClient, {
+  get(_target, prop) {
+    const client = (globalForPrisma.prisma ??= createPrismaClient());
+    const value = Reflect.get(client, prop, client);
+    return typeof value === "function" ? value.bind(client) : value;
+  },
+});

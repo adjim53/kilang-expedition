@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { isAdmin } from "@/lib/admin-auth";
 import { extractPassId } from "@/lib/pass-id";
@@ -14,15 +15,16 @@ export async function GET(request: Request) {
   const passId = extractPassId(q);
   const digits = q.replace(/\D/g, "");
 
-  const where = {
+  // Postgres `contains` is case-sensitive unless mode is "insensitive".
+  const where: Prisma.RegistrationWhereInput = {
     status: "PAID",
     ...(q
       ? {
           OR: [
             ...(passId ? [{ passId }] : []),
-            { passId: { contains: q.toUpperCase() } },
-            { fullName: { contains: q } },
-            { email: { contains: q.toLowerCase() } },
+            { passId: { contains: q, mode: "insensitive" as const } },
+            { fullName: { contains: q, mode: "insensitive" as const } },
+            { email: { contains: q, mode: "insensitive" as const } },
             ...(digits.length >= 4 ? [{ phone: { contains: digits.replace(/^0/, "") } }] : []),
           ],
         }

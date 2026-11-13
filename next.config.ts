@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
-  serverExternalPackages: ["@prisma/adapter-libsql", "@libsql/client", "libsql"],
+  serverExternalPackages: ["@prisma/adapter-pg", "pg"],
 };
 
 export default nextConfig;

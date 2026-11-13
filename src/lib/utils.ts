@@ -38,7 +38,7 @@ export function displayPhone(normalized: string) {
 /**
  * Read an env var at request time. Next.js inlines `process.env.NEXT_PUBLIC_*`
  * at build time; a computed key is not inlined, so values set on the host
- * (e.g. a Docker container) take effect without rebuilding. Server-only.
+ * (e.g. Vercel environment variables) take effect without rebuilding. Server-only.
  */
 export function runtimeEnv(name: string): string | undefined {
   return process.env[name] || undefined;
