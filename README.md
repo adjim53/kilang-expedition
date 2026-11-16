@@ -44,7 +44,7 @@ portal has something to show. Do not run it on the live database.
 | Paystack webhook URL → `https://YOUR-DOMAIN/api/webhooks/paystack` | Paystack dashboard → Settings → API Keys & Webhooks |
 | Resend API key + a verified sending domain (`EMAIL_FROM`) | `.env` |
 | Termii API key + an approved sender ID | `.env` |
-| A long, private admin PIN (`ADMIN_SECRET_KEY`; `change-me` is refused) | `.env` |
+| **First admin account** — `npm run admin:create -- --email you@example.com --name "Your Name"` against the production database, then add everyone else at `/admin/users` | terminal |
 | Your public URL (`NEXT_PUBLIC_APP_URL`) — used in QR codes and emails | `.env` |
 
 ## How it works
@@ -63,9 +63,28 @@ portal has something to show. Do not run it on the live database.
    (Resend: pass, QR code, schedule, packing list, waiver link) and SMS (Termii) go out.
 5. **Pass** — `/pass/KIL-2026-XXXX?t=…` shows the printable pass. The `t` token
    is secret; without it the page returns 404.
-6. **Check-in** — marshals open `/admin/checkin`, enter the PIN, then search or
-   scan QR codes. Two stages: medical clearance (Dec 30) and ascent muster
-   (Dec 31). A climber who is not medically cleared cannot be checked in to climb.
+6. **Check-in** — marshals sign in at `/admin/login`, open **Check-in**, then
+   scan QR codes with the phone camera or search by name. The scanner checks the
+   pass's secret token, so a QR rebuilt from a pass ID alone shows as *not genuine*.
+   A signed-in marshal can also scan a pass with the phone's normal camera app:
+   the pass page then shows a staff panel with the check-in buttons. Two stages:
+   medical clearance (Dec 30) and ascent muster (Dec 31). A climber who is not
+   medically cleared cannot be checked in to climb.
+
+## Back office
+
+Sign in at `/admin/login` with your own email and password. There are three roles:
+
+| Role | Can |
+| --- | --- |
+| Admin | everything below, plus manage users, cancel/reinstate registrations, confirm cash or bank-transfer payments |
+| Registration staff | view, search, edit and export registrations; resend passes; re-check a payment with Paystack; issue a new pass link; check climbers in |
+| Marshal | scan passes, search paid climbers, check them in, resend a pass |
+
+- **Registrations** (`/admin/registrations`) — totals, revenue, kit sizes, filters, CSV export, and a page per registration with its full history.
+- **Users** (`/admin/users`) — add people (they get a temporary password, shown once, which they must change), change roles, reset passwords, deactivate. Deactivating or resetting signs the person out everywhere.
+- Every staff action is recorded in the audit log with who and when.
+- Sign-in is rate-limited per account and per address; sessions last 14 hours and are stored server-side so they can be revoked.
 
 ## Project map
 
@@ -76,12 +95,13 @@ src/data/                   All editable content: event facts, tiers, map, legen
 src/app/page.tsx            Landing page
 src/app/pass/[passId]/      Digital pass
 src/app/waiver/             Safety waiver
-src/app/admin/checkin/      Marshal check-in portal
+src/app/admin/               Back office: sign-in, registrations, check-in & QR scanner, users
 src/app/api/                register · payments · webhooks/paystack · admin · pass QR
 src/components/sections/    Hero, legend, schedule, gallery, registration, map, logistics
 src/lib/                    Paystack, email, SMS, QR, confirmation, admin auth
 .github/workflows/          CI (pull requests) and deploy (main)
 scripts/check-integrations.ts  Pre-launch integration check
+scripts/create-admin.ts        Create or reset a back-office account from the terminal
 tests/                      Unit tests
 ```
 
@@ -119,7 +139,7 @@ One-time setup:
    for Production (see `.env.example`):
    `NEXT_PUBLIC_APP_URL` (your https address), `PAYSTACK_SECRET_KEY`,
    `NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`,
-   `TERMII_API_KEY`, `TERMII_SENDER_ID`, `ADMIN_SECRET_KEY`.
+   `TERMII_API_KEY`, `TERMII_SENDER_ID`.
    For Preview, use Paystack **test** keys and leave Resend/Termii empty so
    previews never email or text real people.
 4. **Redeploy.** Deployments → latest → **⋯ → Redeploy**.

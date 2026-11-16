@@ -6,12 +6,15 @@ import {
   CircleCheck,
   HeartPulse,
   Loader2,
-  LogOut,
   Mountain,
   Phone,
   QrCode,
+  ScanLine,
   Search,
   Send,
+  ShieldAlert,
+  ShieldCheck,
+  ShieldQuestion,
   TriangleAlert,
   Undo2,
   X,
@@ -20,7 +23,7 @@ import type { Participant } from "@/lib/participants";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, displayPhone, formatWAT } from "@/lib/utils";
-import { extractPassId } from "@/lib/pass-id";
+import type { Verdict } from "@/lib/pass-verify";
 
 type Stage = "medical" | "muster";
 type Stats = { total: number; medical: number; muster: number };
@@ -41,70 +44,6 @@ const STAGES: Record<Stage, { label: string; when: string; action: string; done:
     icon: Mountain,
   },
 };
-
-// ── PIN gate ────────────────────────────────────────────────────────────────
-function PinForm() {
-  const router = useRouter();
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
-      });
-      if (res.ok) {
-        router.refresh();
-        return;
-      }
-      setError((await res.json()).error ?? "Could not sign in.");
-    } catch {
-      setError("Could not reach the server.");
-    }
-    setBusy(false);
-  }
-
-  return (
-    <main className="grid min-h-screen place-items-center bg-forest-900 px-5">
-      <form onSubmit={submit} className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-lift">
-        <span className="grid h-12 w-12 place-items-center rounded-full bg-amber-500 text-ink">
-          <Mountain className="h-6 w-6" strokeWidth={2.5} />
-        </span>
-        <h1 className="mt-5 text-3xl font-semibold text-forest-900">Marshal check-in</h1>
-        <p className="mt-2 text-sm text-forest-900/70">Enter the expedition PIN to verify participants.</p>
-
-        <label htmlFor="pin" className="field-label mt-6">
-          PIN
-        </label>
-        <input
-          id="pin"
-          type="password"
-          autoComplete="current-password"
-          autoFocus
-          className="field-input"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          aria-invalid={Boolean(error)}
-        />
-        {error && (
-          <p role="alert" className="field-error">
-            {error}
-          </p>
-        )}
-
-        <Button type="submit" variant="forest" className="mt-6 w-full" disabled={busy || !pin}>
-          {busy && <Loader2 className="h-5 w-5 animate-spin" />} Unlock
-        </Button>
-      </form>
-    </main>
-  );
-}
 
 // ── QR scanner ──────────────────────────────────────────────────────────────
 function Scanner({ onScan, onClose }: { onScan: (text: string) => void; onClose: () => void }) {
@@ -264,8 +203,70 @@ function ParticipantCard({
   );
 }
 
+// ── Scan result ─────────────────────────────────────────────────────────────
+type ScanResult = { verdict: Verdict; message: string; participant: Participant | null };
+
+const VERDICT_STYLE: Record<Verdict, { title: string; className: string; icon: React.ElementType }> = {
+  valid: { title: "Genuine pass", className: "bg-forest-600", icon: ShieldCheck },
+  id_only: { title: "Check photo ID", className: "bg-amber-600", icon: ShieldQuestion },
+  not_genuine: { title: "QR does not match", className: "bg-clay-600", icon: ShieldAlert },
+  cancelled: { title: "Cancelled", className: "bg-clay-600", icon: ShieldAlert },
+  unpaid: { title: "Not paid", className: "bg-clay-600", icon: ShieldAlert },
+  unknown: { title: "Not a valid pass", className: "bg-clay-600", icon: ShieldAlert },
+};
+
+function ScanResultSheet({
+  result,
+  stage,
+  busy,
+  onCheck,
+  onResend,
+  onNext,
+  onClose,
+}: {
+  result: ScanResult;
+  stage: Stage;
+  busy: boolean;
+  onCheck: (p: Participant, undo: boolean) => void;
+  onResend: (p: Participant) => void;
+  onNext: () => void;
+  onClose: () => void;
+}) {
+  const style = VERDICT_STYLE[result.verdict];
+  const Icon = style.icon;
+  const admissible = result.verdict === "valid" || result.verdict === "id_only";
+  return (
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-forest-950/90 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="scan-verdict">
+      <div className="mx-auto max-w-xl">
+        <div className={cn("rounded-3xl p-6 text-white shadow-lift", style.className)} role="alert">
+          <p id="scan-verdict" className="flex items-center gap-3 text-3xl font-bold">
+            <Icon className="h-10 w-10 shrink-0" /> {style.title}
+          </p>
+          <p className="mt-2 text-sm font-semibold text-white/90">{result.message}</p>
+        </div>
+        {result.participant && (
+          <ul className="mt-3">
+            {admissible ? (
+              <ParticipantCard p={result.participant} stage={stage} busy={busy} onCheck={onCheck} onResend={onResend} />
+            ) : (
+              <li className="rounded-2xl bg-white p-5">
+                <p className="font-display text-2xl font-semibold text-forest-900">{result.participant.fullName}</p>
+                <p className="font-mono text-sm font-bold text-forest-700">{result.participant.passId}</p>
+              </li>
+            )}
+          </ul>
+        )}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button variant="light" onClick={onClose}>Close</Button>
+          <Button onClick={onNext}><ScanLine className="h-5 w-5" /> Scan next</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Portal ──────────────────────────────────────────────────────────────────
-export function CheckinPortal({ authed }: { authed: boolean }) {
+export function CheckinPortal() {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>("medical");
   const [query, setQuery] = useState("");
@@ -275,6 +276,7 @@ export function CheckinPortal({ authed }: { authed: boolean }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const requestId = useRef(0);
 
   const search = useCallback(
@@ -283,7 +285,7 @@ export function CheckinPortal({ authed }: { authed: boolean }) {
       setLoading(true);
       try {
         const res = await fetch(`/api/admin/participants?q=${encodeURIComponent(q)}`, { cache: "no-store" });
-        if (res.status === 401) return router.refresh();
+        if (res.status === 401) return router.replace("/admin/login?next=/admin/checkin");
         const json = await res.json();
         if (id !== requestId.current) return; // a newer search has started
         setParticipants(json.participants ?? []);
@@ -298,23 +300,30 @@ export function CheckinPortal({ authed }: { authed: boolean }) {
   );
 
   useEffect(() => {
-    if (!authed) return;
     const timer = setTimeout(() => void search(query), 250);
     return () => clearTimeout(timer);
-  }, [authed, query, search]);
+  }, [query, search]);
 
-  const onScan = useCallback((text: string) => {
-    setScanning(false);
-    const passId = extractPassId(text);
-    if (!passId) {
-      setNotice({ tone: "error", text: "That QR code is not a Kilang Expedition pass." });
-      return;
-    }
-    setNotice(null);
-    setQuery(passId);
-  }, []);
-
-  if (!authed) return <PinForm />;
+  const onScan = useCallback(
+    async (text: string) => {
+      setScanning(false);
+      setNotice(null);
+      try {
+        const res = await fetch("/api/admin/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: text }),
+        });
+        if (res.status === 401) return router.replace("/admin/login?next=/admin/checkin");
+        const json = await res.json();
+        if (!res.ok) setNotice({ tone: "error", text: json.error ?? "Couldn't check that code." });
+        else setScanResult(json);
+      } catch {
+        setNotice({ tone: "error", text: "No connection — couldn't check the pass. Search by name instead." });
+      }
+    },
+    [router],
+  );
 
   async function check(p: Participant, undo: boolean) {
     setBusyId(p.passId);
@@ -330,6 +339,7 @@ export function CheckinPortal({ authed }: { authed: boolean }) {
         setNotice({ tone: "error", text: json.error ?? "Couldn't update this participant." });
       } else {
         setParticipants((list) => list.map((x) => (x.passId === p.passId ? json.participant : x)));
+        setScanResult((r) => (r?.participant?.passId === p.passId ? { ...r, participant: json.participant } : r));
         setNotice({
           tone: "ok",
           text: undo ? `Undone for ${p.fullName}.` : `${p.fullName} — ${STAGES[stage].done.toLowerCase()}.`,
@@ -364,10 +374,6 @@ export function CheckinPortal({ authed }: { authed: boolean }) {
     setBusyId(null);
   }
 
-  async function logout() {
-    await fetch("/api/admin/logout", { method: "POST" });
-    router.refresh();
-  }
 
   const statCells: [string, number | undefined][] = [
     ["Paid climbers", stats?.total],
@@ -383,9 +389,6 @@ export function CheckinPortal({ authed }: { authed: boolean }) {
             <p className="eyebrow text-amber-400">Kilang Expedition 2026</p>
             <h1 className="text-2xl font-semibold">Marshal check-in</h1>
           </div>
-          <Button variant="light" size="sm" onClick={logout}>
-            <LogOut className="h-4 w-4" /> Lock
-          </Button>
         </div>
         <div className="container grid grid-cols-3 gap-2 pb-5">
           {statCells.map(([label, value]) => (
@@ -485,6 +488,20 @@ export function CheckinPortal({ authed }: { authed: boolean }) {
       </div>
 
       {scanning && <Scanner onScan={onScan} onClose={() => setScanning(false)} />}
+      {scanResult && !scanning && (
+        <ScanResultSheet
+          result={scanResult}
+          stage={stage}
+          busy={busyId === scanResult.participant?.passId}
+          onCheck={check}
+          onResend={resend}
+          onNext={() => {
+            setScanResult(null);
+            setScanning(true);
+          }}
+          onClose={() => setScanResult(null)}
+        />
+      )}
     </main>
   );
 }

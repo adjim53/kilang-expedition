@@ -5,6 +5,8 @@ import { getTiers } from "@/lib/tiers";
 import { generateAccessToken, generateReference } from "@/lib/ids";
 import { demoPaymentsEnabled, paystackConfigured, paystackPublicKey } from "@/lib/paystack";
 import { normalizeNigerianPhone } from "@/lib/utils";
+import { clientIp, hit } from "@/lib/rate-limit";
+import { z } from "zod";
 
 export const runtime = "nodejs";
 
@@ -13,6 +15,14 @@ export const runtime = "nodejs";
  * the browser a payment reference. The price always comes from the server.
  */
 export async function POST(request: Request) {
+  // Each attempt stores a row; cap how fast one address can create them.
+  if (!(await hit(`register:${clientIp(request)}`, 15, 10 * 60 * 1000))) {
+    return NextResponse.json(
+      { error: "Too many registrations from this connection. Please wait a few minutes and try again." },
+      { status: 429 },
+    );
+  }
+
   let body: unknown;
   try {
     body = await request.json();
@@ -23,7 +33,7 @@ export async function POST(request: Request) {
   const parsed = registrationSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Please check the highlighted fields.", fieldErrors: parsed.error.flatten().fieldErrors },
+      { error: "Please check the highlighted fields.", fieldErrors: z.flattenError(parsed.error).fieldErrors },
       { status: 422 },
     );
   }

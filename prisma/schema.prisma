@@ -1,19 +1,15 @@
 // Kilang Mountain Expedition 2026 — data model (PostgreSQL, e.g. Neon on Vercel)
 
+// Prisma 7 client: pure TypeScript, no native engine binary. The database is
+// reached through a driver adapter — see src/lib/prisma.ts.
 generator client {
-  provider   = "prisma-client-js"
-  // Pure-TypeScript client (no native query-engine binary). The database is
-  // reached through a driver adapter — see src/lib/prisma.ts.
-  engineType = "client"
+  provider = "prisma-client-js"
 }
 
+// Connection strings are in prisma.config.ts (Prisma 7): DATABASE_URL (pooled,
+// used by the site) and DATABASE_URL_UNPOOLED (direct, used by migrations).
 datasource db {
-  provider  = "postgresql"
-  // Pooled connection — used by the running site.
-  url       = env("DATABASE_URL")
-  // Direct (non-pooled) connection — used by `prisma migrate`. Neon's Vercel
-  // integration sets both. Locally they can be the same URL.
-  directUrl = env("DATABASE_URL_UNPOOLED")
+  provider = "postgresql"
 }
 
 model TicketTier {
@@ -35,7 +31,7 @@ model Registration {
   reference   String  @unique // Paystack transaction reference
   accessToken String  @unique // secret token that unlocks the digital pass page
   passId      String? @unique // KIL-2026-XXXX, assigned once payment is confirmed
-  status      String  @default("PENDING") // PENDING | PAID | FAILED
+  status      String  @default("PENDING") // PENDING | PAID | FAILED | CANCELLED
 
   tierId     String
   tier       TicketTier @relation(fields: [tierId], references: [id])
@@ -57,9 +53,16 @@ model Registration {
   paystackTxId     String?
   emailSentAt      DateTime?
   smsSentAt        DateTime?
+  emailError       String? // last delivery failure, shown to staff
+  smsError         String?
 
   medicalCheckedAt DateTime? // Dec 30 medical checkup
+  medicalCheckedBy String? // staff name
   musterCheckedAt  DateTime? // Dec 31 4:00 AM Popandi muster
+  musterCheckedBy  String?
+
+  cancelledAt  DateTime?
+  cancelReason String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -68,4 +71,57 @@ model Registration {
   @@index([email])
   @@index([phone])
   @@index([status])
+}
+
+// ── Back office ─────────────────────────────────────────────────────────────
+
+model AdminUser {
+  id                 String         @id @default(cuid())
+  email              String         @unique // stored lower-case
+  name               String
+  passwordHash       String // scrypt — see src/lib/auth/password.ts
+  role               String         @default("MARSHAL") // ADMIN | STAFF | MARSHAL
+  active             Boolean        @default(true)
+  mustChangePassword Boolean        @default(true)
+  lastLoginAt        DateTime?
+  sessions           AdminSession[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+}
+
+model AdminSession {
+  id        String    @id @default(cuid())
+  tokenHash String    @unique // sha256 of the cookie value; the raw token is never stored
+  userId    String
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  ip        String?
+  userAgent String?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Who did what in the back office. Never deleted by the app.
+model AuditLog {
+  id             String   @id @default(cuid())
+  actorId        String?
+  actorName      String
+  action         String // e.g. checkin.medical, registration.edit, user.create
+  registrationId String?
+  targetUserId   String?
+  details        String? // JSON
+  createdAt      DateTime @default(now())
+
+  @@index([registrationId])
+  @@index([createdAt])
+}
+
+/// Fixed-window counters for login and registration rate limits. Stored in
+/// the database so limits hold across serverless instances.
+model RateLimit {
+  key     String   @id // e.g. "login:ip:1.2.3.4"
+  count   Int
+  resetAt DateTime
 }

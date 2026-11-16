@@ -11,3 +11,6 @@ next-env.d.ts
 coverage
 prisma/*.db
 prisma/*.db-journal
+
+# Local-only credentials handed to the organisers
+ADMIN-ACCESS*

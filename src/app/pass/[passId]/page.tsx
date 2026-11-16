@@ -9,6 +9,11 @@ import { SiteHeader } from "@/components/site-header";
 import { Topo } from "@/components/topo";
 import { Badge } from "@/components/ui/badge";
 import { PassActions } from "@/components/pass-actions";
+import { StaffPassPanel } from "@/components/admin/staff-pass-panel";
+import { getAdminUser } from "@/lib/admin-auth";
+import { can } from "@/lib/auth/roles";
+import { tokensMatch } from "@/lib/ids";
+import { toParticipant } from "@/lib/participants";
 
 export const dynamic = "force-dynamic";
 
@@ -27,15 +32,26 @@ export default async function PassPage({
   const { passId } = await params;
   const { t } = await searchParams;
 
+  if (passId.length > 40) notFound();
   const registration = await prisma.registration.findUnique({
     where: { passId: passId.toUpperCase() },
     include: { tier: true },
   });
 
   // The pass is private: without the secret token from the email link, it does not exist.
-  if (!registration || !registration.passId || registration.status !== "PAID" || !t || t !== registration.accessToken) {
+  if (
+    !registration ||
+    !registration.passId ||
+    (registration.status !== "PAID" && registration.status !== "CANCELLED") ||
+    !tokensMatch(t, registration.accessToken)
+  ) {
     notFound();
   }
+
+  // Staff who scan the QR with their phone camera see a check-in panel.
+  const staff = await getAdminUser();
+  const staffView = staff && !staff.mustChangePassword && can(staff.role, "checkin") ? staff : null;
+  const cancelled = registration.status === "CANCELLED";
 
   const qr = await qrSvg(passUrl(registration.passId, registration.accessToken));
   const qrDownload = `/api/pass/${registration.passId}/qr?t=${registration.accessToken}`;
@@ -45,12 +61,20 @@ export default async function PassPage({
       <SiteHeader solid />
       <main className="min-h-screen bg-sand-100 px-4 pb-16 pt-24 print:bg-white print:pt-0">
         <div className="mx-auto max-w-md">
-          <p className="no-print mb-4 flex items-center gap-2 rounded-xl bg-forest-100 p-4 text-sm font-semibold text-forest-800">
-            <CircleCheck className="h-5 w-5 shrink-0 text-forest-600" />
-            Payment confirmed. This is your pass — save it or print it.
-          </p>
+          {staffView ? (
+            <StaffPassPanel participant={toParticipant(registration)} staffName={staffView.name} />
+          ) : cancelled ? (
+            <p role="alert" className="no-print mb-4 rounded-xl bg-clay-500/10 p-4 text-sm font-semibold text-clay-600">
+              This registration has been cancelled and the pass is no longer valid. Questions? Contact the organisers.
+            </p>
+          ) : (
+            <p className="no-print mb-4 flex items-center gap-2 rounded-xl bg-forest-100 p-4 text-sm font-semibold text-forest-800">
+              <CircleCheck className="h-5 w-5 shrink-0 text-forest-600" />
+              Payment confirmed. This is your pass — save it or print it.
+            </p>
+          )}
 
-          <article className="overflow-hidden rounded-3xl bg-white shadow-lift print:shadow-none">
+          <article className={`overflow-hidden rounded-3xl bg-white shadow-lift print:shadow-none ${cancelled ? "opacity-50 grayscale" : ""}`}>
             <header className="relative overflow-hidden bg-forest-700 p-6 text-white">
               <Topo className="text-white/10" />
               <div className="relative">
@@ -125,7 +149,7 @@ export default async function PassPage({
             </div>
           </article>
 
-          <PassActions qrDownloadUrl={qrDownload} passId={registration.passId} />
+          {!cancelled && <PassActions qrDownloadUrl={qrDownload} passId={registration.passId} />}
 
           <p className="no-print mt-6 text-center text-sm text-forest-900/70">
             Keep this link private — anyone with it can show your pass.{" "}

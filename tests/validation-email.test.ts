@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { registrationSchema } from "@/lib/validation";
 import { renderPassEmail } from "@/lib/email";
+import { z } from "zod";
 
 const valid = {
   tierId: "standard",
@@ -26,7 +27,7 @@ describe("registrationSchema", () => {
   it("requires the waiver and valid fields", () => {
     const result = registrationSchema.safeParse({ ...valid, waiverAccepted: false, genotype: "ZZ", phone: "123" });
     expect(result.success).toBe(false);
-    const errors = result.success ? {} : result.error.flatten().fieldErrors;
+    const errors = result.success ? {} : z.flattenError(result.error).fieldErrors;
     expect(Object.keys(errors).sort()).toEqual(["genotype", "phone", "waiverAccepted"]);
   });
 });

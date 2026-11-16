@@ -40,7 +40,6 @@ jobs:
       DATABASE_URL: "postgresql://kilang:kilang@localhost:5432/kilang"
       DATABASE_URL_UNPOOLED: "postgresql://kilang:kilang@localhost:5432/kilang"
       NEXT_PUBLIC_APP_URL: "http://localhost:3000"
-      ADMIN_SECRET_KEY: "ci-only-secret"
       NEXT_TELEMETRY_DISABLED: "1"
 
     steps:

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isAdmin } from "@/lib/admin-auth";
+import { requireApi } from "@/lib/admin-auth";
 import { extractPassId } from "@/lib/pass-id";
 import { toParticipant } from "@/lib/participants";
 
@@ -9,9 +9,10 @@ export const runtime = "nodejs";
 
 /** Search paid participants by name, pass ID, phone or email. Also returns headline counts. */
 export async function GET(request: Request) {
-  if (!(await isAdmin())) return NextResponse.json({ error: "Unauthorised." }, { status: 401 });
+  const guard = await requireApi(request, "checkin");
+  if (guard.error) return guard.error;
 
-  const q = (new URL(request.url).searchParams.get("q") || "").trim();
+  const q = (new URL(request.url).searchParams.get("q") || "").trim().slice(0, 100);
   const passId = extractPassId(q);
   const digits = q.replace(/\D/g, "");
 

@@ -80,7 +80,7 @@ export async function dispatchPass(registrationId: string) {
     where: { id: registrationId },
     include: { tier: true },
   });
-  if (!reg || !reg.passId) return { email: false, sms: false };
+  if (!reg || !reg.passId || reg.status !== "PAID") return { email: false, sms: false, emailError: null, smsError: null };
 
   const [email, sms] = await Promise.all([
     sendPassEmail({
@@ -93,13 +93,18 @@ export async function dispatchPass(registrationId: string) {
     sendSms(reg.phone, passConfirmationSms(reg.passId)),
   ]);
 
+  const emailError = email.ok ? null : email.skipped ? "Email is not configured on the server" : (email.error ?? "Email failed");
+  const smsError = sms.ok ? null : sms.skipped ? "SMS is not configured on the server" : (sms.error ?? "SMS failed");
+
   await prisma.registration.update({
     where: { id: reg.id },
     data: {
       ...(email.ok ? { emailSentAt: new Date() } : {}),
       ...(sms.ok ? { smsSentAt: new Date() } : {}),
+      emailError: emailError?.slice(0, 300) ?? null,
+      smsError: smsError?.slice(0, 300) ?? null,
     },
   });
 
-  return { email: email.ok, sms: sms.ok };
+  return { email: email.ok, sms: sms.ok, emailError, smsError };
 }

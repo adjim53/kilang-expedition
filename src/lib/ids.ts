@@ -25,3 +25,11 @@ export function generateReference() {
 export function generateAccessToken() {
   return crypto.randomBytes(24).toString("base64url");
 }
+
+/** Constant-time comparison for pass tokens. */
+export function tokensMatch(given: string | null | undefined, expected: string) {
+  if (!given) return false;
+  const a = crypto.createHash("sha256").update(given).digest();
+  const b = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}

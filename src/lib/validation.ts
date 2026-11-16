@@ -25,14 +25,12 @@ export const registrationSchema = z.object({
   phone,
   nextOfKinName: z.string().trim().min(3, "Enter your next of kin's name").max(100),
   nextOfKinPhone: phone,
-  bloodGroup: z.enum(BLOOD_GROUPS, { errorMap: () => ({ message: "Select your blood group" }) }),
-  genotype: z.enum(GENOTYPES, { errorMap: () => ({ message: "Select your genotype" }) }),
-  experience: z.enum(EXPERIENCE_LEVELS, { errorMap: () => ({ message: "Select your experience" }) }),
+  bloodGroup: z.enum(BLOOD_GROUPS, { error: "Select your blood group" }),
+  genotype: z.enum(GENOTYPES, { error: "Select your genotype" }),
+  experience: z.enum(EXPERIENCE_LEVELS, { error: "Select your experience" }),
   medicalNotes: z.string().trim().max(1000, "Keep this under 1,000 characters").optional().default(""),
-  kitSize: z.enum(KIT_SIZES, { errorMap: () => ({ message: "Select a kit size" }) }),
-  waiverAccepted: z.literal(true, {
-    errorMap: () => ({ message: "You must accept the safety waiver to register" }),
-  }),
+  kitSize: z.enum(KIT_SIZES, { error: "Select a kit size" }),
+  waiverAccepted: z.literal(true, { error: "You must accept the safety waiver to register" }),
 });
 
 export type RegistrationInput = z.input<typeof registrationSchema>;

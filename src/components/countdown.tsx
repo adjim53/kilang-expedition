@@ -19,9 +19,13 @@ export function Countdown({ to, doneLabel }: { to: string; doneLabel: string }) 
   const [time, setTime] = useState<ReturnType<typeof remaining> | null>(null);
 
   useEffect(() => {
-    setTime(remaining(target));
-    const id = setInterval(() => setTime(remaining(target)), 1000);
-    return () => clearInterval(id);
+    const tick = () => setTime(remaining(target));
+    const first = setTimeout(tick, 0); // first value right after mount
+    const id = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+    };
   }, [target]);
 
   if (time?.done) {

@@ -7,6 +7,7 @@
  */
 import "dotenv/config";
 import { TERMII_DEFAULT_BASE_URL } from "../src/lib/sms";
+import { createPrismaClient } from "../src/lib/prisma";
 
 type Status = "pass" | "warn" | "fail";
 const results: { name: string; status: Status; detail: string }[] = [];
@@ -83,12 +84,21 @@ async function checkTermii() {
   report("Termii balance", balance >= 500 ? "pass" : "warn", `₦${balance.toLocaleString("en-NG")} — top up before launch (≈₦5 per SMS)`);
 }
 
-function checkConfig() {
-  const admin = process.env.ADMIN_SECRET_KEY ?? "";
-  if (!admin || admin === "change-me") report("Admin PIN", "fail", "ADMIN_SECRET_KEY missing or placeholder — check-in portal is locked");
-  else if (admin.length < 12) report("Admin PIN", "warn", "ADMIN_SECRET_KEY is short — use 12+ characters");
-  else report("Admin PIN", "pass", "set");
+async function checkAdmins() {
+  if (!process.env.DATABASE_URL) return report("Admin users", "fail", "DATABASE_URL not set");
+  const prisma = createPrismaClient();
+  try {
+    const admins = await prisma.adminUser.count({ where: { role: "ADMIN", active: true } });
+    if (admins === 0) report("Admin users", "fail", 'no active admin — run: npm run admin:create -- --email you@example.com --name "Your Name"');
+    else report("Admin users", "pass", `${admins} active admin${admins === 1 ? "" : "s"}`);
+  } catch {
+    report("Admin users", "fail", "couldn't read admin users — run the database migrations (npm run db:deploy)");
+  } finally {
+    await prisma.$disconnect();
+  }
+}
 
+function checkConfig() {
   const url = process.env.NEXT_PUBLIC_APP_URL ?? "";
   if (!url) report("App URL", "fail", "NEXT_PUBLIC_APP_URL not set — links in emails and QR codes will point to localhost");
   else if (!url.startsWith("https://")) report("App URL", "warn", `${url} — must be your public https:// URL in production (QR codes and email links use it)`);
@@ -101,6 +111,7 @@ async function main() {
     ["Paystack", checkPaystack],
     ["Resend", checkResend],
     ["Termii", checkTermii],
+    ["Admin users", checkAdmins],
   ] as const) {
     try {
       await fn();

@@ -16,7 +16,7 @@ export const EVENT = {
 } as const;
 
 export const CONTACT = {
-  email: "kilangexp@gmail.com",
+  email: "kilangexpedition@gmail.com",
   phones: ["08031907825", "08136571113", "08027367193"],
   handle: "@KilangExpedition",
   socials: [

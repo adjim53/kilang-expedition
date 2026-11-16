@@ -16,6 +16,7 @@ import {
   registrationSchema,
 } from "@/lib/validation";
 import { cn, formatNaira } from "@/lib/utils";
+import { z } from "zod";
 
 type FormState = {
   fullName: string;
@@ -166,7 +167,7 @@ export function RegistrationFlow({ tiers }: { tiers: Tier[] }) {
 
     const parsed = registrationSchema.safeParse({ ...form, tierId });
     if (!parsed.success) {
-      const flat = parsed.error.flatten().fieldErrors as Record<string, string[] | undefined>;
+      const flat = z.flattenError(parsed.error).fieldErrors as Record<string, string[] | undefined>;
       const next: FieldErrors = {};
       for (const [key, value] of Object.entries(flat)) if (value?.[0]) next[key as keyof FieldErrors] = value[0];
       setErrors(next);
