@@ -16,7 +16,7 @@ const schema = z.object({
 
 const WINDOW = 15 * 60 * 1000;
 const PER_ACCOUNT = 5; // wrong passwords per account per 15 min
-const PER_IP = 20; // attempts per address per 15 min
+const PER_IP = 60; // attempts per address per 15 min (venue Wi-Fi and mobile networks share addresses)
 
 export async function POST(request: Request) {
   if (!isSameOrigin(request)) return NextResponse.json({ error: "Request blocked." }, { status: 403 });

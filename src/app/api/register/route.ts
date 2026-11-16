@@ -16,7 +16,9 @@ export const runtime = "nodejs";
  */
 export async function POST(request: Request) {
   // Each attempt stores a row; cap how fast one address can create them.
-  if (!(await hit(`register:${clientIp(request)}`, 15, 10 * 60 * 1000))) {
+  // Generous because Nigerian mobile networks put many customers behind one
+  // shared address; this only stops scripted floods.
+  if (!(await hit(`register:${clientIp(request)}`, 100, 10 * 60 * 1000))) {
     return NextResponse.json(
       { error: "Too many registrations from this connection. Please wait a few minutes and try again." },
       { status: 429 },

@@ -1,6 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowDown, CalendarDays, MapPin } from "lucide-react";
 import { EVENT } from "@/data/event";
+import { BRAND } from "@/data/brand";
 import { Button } from "@/components/ui/button";
 import { Countdown } from "@/components/countdown";
 import { Topo } from "@/components/topo";
@@ -67,38 +69,62 @@ export function Hero() {
       <Topo className="text-white/[0.07]" />
       <Ridgeline />
 
-      <div className="container relative z-10 flex flex-1 flex-col justify-center pb-40 pt-28 sm:pb-52">
-        <p className="eyebrow text-amber-400">{EVENT.theme}</p>
+      <div className="container relative z-10 grid flex-1 items-center gap-10 pb-40 pt-28 sm:pb-52 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="flex flex-col justify-center">
+          <Image
+            src={BRAND.badge.src}
+            alt={BRAND.badge.alt}
+            width={96}
+            height={96}
+            priority
+            className="mb-6 h-24 w-24 rounded-full shadow-lift ring-4 ring-white/10 lg:hidden"
+          />
+          <p className="eyebrow text-amber-400">{EVENT.theme}</p>
 
-        <h1 className="mt-5 max-w-3xl text-[2.9rem] font-semibold leading-[0.98] tracking-tight sm:text-7xl lg:text-[5.4rem]">
-          Meet the last sunrise of 2026 from the <em className="font-medium italic text-amber-400">roof of Gombe.</em>
-        </h1>
+          <h1 className="mt-5 max-w-3xl text-[2.9rem] font-semibold leading-[0.98] tracking-tight sm:text-7xl lg:text-[5.4rem]">
+            Meet the last sunrise of 2026 from the <em className="font-medium italic text-amber-400">roof of Gombe.</em>
+          </h1>
 
-        <p className="mt-6 max-w-xl text-lg leading-relaxed text-forest-100 sm:text-xl">
-          The Kilang Mountain Expedition returns to Pan Kilang, Kaltungo. Two days, one summit, and a community
-          climbing together.
-        </p>
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-forest-100 sm:text-xl">
+            The Kilang Mountain Expedition returns to Pan Kilang, Kaltungo. Two days, one summit, and a community
+            climbing together.
+          </p>
 
-        <ul className="mt-6 flex flex-col gap-2 text-sm font-semibold text-white sm:flex-row sm:gap-6 sm:text-base">
-          <li className="inline-flex items-center gap-2">
-            <CalendarDays className="h-5 w-5 text-amber-400" /> December 30 – 31, 2026
-          </li>
-          <li className="inline-flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-amber-400" /> {EVENT.location}
-          </li>
-        </ul>
+          <ul className="mt-6 flex flex-col gap-2 text-sm font-semibold text-white sm:flex-row sm:gap-6 sm:text-base">
+            <li className="inline-flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-amber-400" /> December 30 – 31, 2026
+            </li>
+            <li className="inline-flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-amber-400" /> {EVENT.location}
+            </li>
+          </ul>
 
-        <div className="mt-9">
-          <Countdown to={EVENT.startsAt} doneLabel="The expedition is under way." />
+          <div className="mt-9">
+            <Countdown to={EVENT.startsAt} doneLabel="The expedition is under way." />
+          </div>
+
+          <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+            <Button asChild size="lg">
+              <Link href="#register">Register to climb</Link>
+            </Button>
+            <Button asChild size="lg" variant="light">
+              <Link href="#schedule">See the schedule</Link>
+            </Button>
+          </div>
         </div>
 
-        <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-          <Button asChild size="lg">
-            <Link href="#register">Register to climb</Link>
-          </Button>
-          <Button asChild size="lg" variant="light">
-            <Link href="#schedule">See the schedule</Link>
-          </Button>
+        {/* Event emblem — wide screens only; phones get the smaller copy above the headline */}
+        <div className="relative hidden lg:block">
+          <div className="absolute inset-0 -m-6 rounded-full bg-amber-400/20 blur-3xl" aria-hidden="true" />
+          <Image
+            src={BRAND.badge.src}
+            alt={BRAND.badge.alt}
+            width={340}
+            height={340}
+            priority
+            sizes="(min-width: 1280px) 340px, 280px"
+            className="relative h-[280px] w-[280px] rounded-full shadow-lift ring-8 ring-white/10 xl:h-[340px] xl:w-[340px]"
+          />
         </div>
       </div>
 

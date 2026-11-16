@@ -1,8 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Menu, Mountain, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { BRAND } from "@/data/brand";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -36,9 +38,14 @@ export function SiteHeader({ solid = false }: { solid?: boolean }) {
     >
       <div className="container flex h-16 items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 text-white" onClick={() => setOpen(false)}>
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-amber-500 text-ink">
-            <Mountain className="h-5 w-5" strokeWidth={2.5} />
-          </span>
+          <Image
+            src={BRAND.badge.src}
+            alt=""
+            width={44}
+            height={44}
+            priority
+            className="h-11 w-11 rounded-full shadow-md ring-2 ring-white/20"
+          />
           <span className="font-display text-lg font-semibold leading-none tracking-tight">
             Kilang <span className="text-amber-400">2026</span>
           </span>

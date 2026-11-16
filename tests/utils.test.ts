@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { displayPhone, formatNaira, normalizeNigerianPhone } from "@/lib/utils";
+import { afterEach, describe, expect, it } from "vitest";
+import { appUrl, displayPhone, formatNaira, normalizeNigerianPhone } from "@/lib/utils";
 import { extractPassId } from "@/lib/pass-id";
 import { generateAccessToken, generatePassId, generateReference } from "@/lib/ids";
 
@@ -38,5 +38,32 @@ describe("ids", () => {
   it("extracts pass IDs from scanned URLs", () => {
     expect(extractPassId("https://x.test/pass/kil-2026-ab3d?t=abc")).toBe("KIL-2026-AB3D");
     expect(extractPassId("nothing here")).toBeNull();
+  });
+});
+
+describe("appUrl", () => {
+  const keys = ["NEXT_PUBLIC_APP_URL", "VERCEL_ENV", "VERCEL_PROJECT_PRODUCTION_URL", "VERCEL_URL"] as const;
+  const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
+  const set = (env: Partial<Record<(typeof keys)[number], string>>) => {
+    for (const k of keys) delete process.env[k];
+    Object.assign(process.env, env);
+  };
+  afterEach(() => set(saved as Record<string, string>));
+
+  it("prefers NEXT_PUBLIC_APP_URL and drops a trailing slash", () => {
+    set({ NEXT_PUBLIC_APP_URL: "https://www.kilangexpe.org/", VERCEL_ENV: "production", VERCEL_PROJECT_PRODUCTION_URL: "x.vercel.app" });
+    expect(appUrl()).toBe("https://www.kilangexpe.org");
+  });
+  it("uses Vercel's production domain when not set", () => {
+    set({ VERCEL_ENV: "production", VERCEL_PROJECT_PRODUCTION_URL: "www.kilangexpe.org" });
+    expect(appUrl()).toBe("https://www.kilangexpe.org");
+  });
+  it("uses the deployment URL on previews", () => {
+    set({ VERCEL_ENV: "preview", VERCEL_URL: "kilang-abc.vercel.app", VERCEL_PROJECT_PRODUCTION_URL: "www.kilangexpe.org" });
+    expect(appUrl()).toBe("https://kilang-abc.vercel.app");
+  });
+  it("falls back to localhost in development", () => {
+    set({});
+    expect(appUrl()).toBe("http://localhost:3000");
   });
 });

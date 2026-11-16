@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { paystackConfigured, paystackMode } from "@/lib/paystack";
+import { appUrl } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ export async function GET() {
   const body = {
     ok: database,
     database,
+    // Public base URL that QR codes and email links use. Not a secret.
+    appUrl: appUrl(),
     integrations: {
       paystack: paystackConfigured() ? paystackMode() : "not_configured",
       resend: Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM),

@@ -1,6 +1,8 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Mail, Phone } from "lucide-react";
 import { CONTACT, EVENT } from "@/data/event";
+import { BRAND } from "@/data/brand";
 import { Topo } from "@/components/topo";
 
 export function SiteFooter() {
@@ -9,9 +11,18 @@ export function SiteFooter() {
       <Topo className="text-white/[0.04]" />
       <div className="container relative grid gap-12 py-16 md:grid-cols-[1.4fr_1fr_1fr]">
         <div>
-          <p className="font-display text-3xl font-semibold text-white">
-            Kilang Mountain <span className="text-amber-400">Expedition</span>
-          </p>
+          <div className="flex items-center gap-4">
+            <Image
+              src={BRAND.badge.src}
+              alt={BRAND.badge.alt}
+              width={72}
+              height={72}
+              className="h-[72px] w-[72px] shrink-0 rounded-full ring-2 ring-white/10"
+            />
+            <p className="font-display text-3xl font-semibold leading-tight text-white">
+              Kilang Mountain <span className="text-amber-400">Expedition</span>
+            </p>
+          </div>
           <p className="mt-3 max-w-sm text-sm leading-relaxed text-forest-200">
             {EVENT.theme}. {EVENT.tagline}.
           </p>
@@ -53,6 +64,18 @@ export function SiteFooter() {
             <li><Link href="/#route" className="hover:text-white">Getting there</Link></li>
             <li><Link href="/waiver" className="hover:text-white">Safety waiver</Link></li>
             <li><Link href="/admin/checkin" className="hover:text-white">Marshal check-in</Link></li>
+          </ul>
+        </div>
+      </div>
+      <div className="relative border-t border-white/10">
+        <div className="container flex flex-col items-center gap-4 py-8 sm:flex-row sm:justify-center sm:gap-6">
+          <p className="eyebrow text-forest-200">In partnership with</p>
+          <ul className="flex flex-wrap items-center justify-center gap-4">
+            {BRAND.partners.map((p) => (
+              <li key={p.name} className="rounded-xl bg-white px-4 py-3 shadow-md">
+                <Image src={p.src} alt={p.alt} width={p.width} height={p.height} sizes="180px" className="h-auto w-[180px]" />
+              </li>
+            ))}
           </ul>
         </div>
       </div>

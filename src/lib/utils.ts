@@ -44,8 +44,20 @@ export function runtimeEnv(name: string): string | undefined {
   return process.env[name] || undefined;
 }
 
+/**
+ * Public base URL, used in QR codes and email links. Order of preference:
+ * NEXT_PUBLIC_APP_URL; on Vercel, the production domain (or this deployment's
+ * own URL for previews); localhost for development.
+ */
 export function appUrl() {
-  return (runtimeEnv("NEXT_PUBLIC_APP_URL") || "http://localhost:3000").replace(/\/$/, "");
+  const explicit = runtimeEnv("NEXT_PUBLIC_APP_URL");
+  if (explicit) return explicit.replace(/\/$/, "");
+  const vercelHost =
+    runtimeEnv("VERCEL_ENV") === "production"
+      ? runtimeEnv("VERCEL_PROJECT_PRODUCTION_URL")
+      : runtimeEnv("VERCEL_URL");
+  if (vercelHost) return `https://${vercelHost.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+  return "http://localhost:3000";
 }
 
 export function formatWAT(date: Date | string | null | undefined) {

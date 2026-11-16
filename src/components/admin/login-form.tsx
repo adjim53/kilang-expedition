@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Loader2, Mountain } from "lucide-react";
+import Image from "next/image";
+import { Loader2 } from "lucide-react";
+import { BRAND } from "@/data/brand";
 import { Button } from "@/components/ui/button";
 
 export function LoginForm({ next }: { next: string | null }) {
@@ -39,9 +41,7 @@ export function LoginForm({ next }: { next: string | null }) {
   return (
     <main className="grid min-h-screen place-items-center bg-forest-900 px-5 py-10">
       <form onSubmit={submit} className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-lift">
-        <span className="grid h-12 w-12 place-items-center rounded-full bg-amber-500 text-ink">
-          <Mountain className="h-6 w-6" strokeWidth={2.5} />
-        </span>
+        <Image src={BRAND.badge.src} alt="Kilang Mountain Expedition 2026" width={64} height={64} priority className="h-16 w-16 rounded-full" />
         <h1 className="mt-5 text-3xl font-semibold text-forest-900">Staff sign-in</h1>
         <p className="mt-2 text-sm text-forest-900/70">Kilang Expedition 2026 back office.</p>
 
