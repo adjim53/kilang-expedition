@@ -4,10 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { requireApi } from "@/lib/admin-auth";
 import { extractPassId } from "@/lib/pass-id";
 import { toParticipant } from "@/lib/participants";
+import { checkpointCounts } from "@/lib/tracker";
 
 export const runtime = "nodejs";
 
-/** Search paid participants by name, pass ID, phone or email. Also returns headline counts. */
+/** Search registered climbers by name, pass ID, phone or email. Also returns headline counts. */
 export async function GET(request: Request) {
   const guard = await requireApi(request, "checkin");
   if (guard.error) return guard.error;
@@ -18,7 +19,7 @@ export async function GET(request: Request) {
 
   // Postgres `contains` is case-sensitive unless mode is "insensitive".
   const where: Prisma.RegistrationWhereInput = {
-    status: "PAID",
+    status: "REGISTERED",
     ...(q
       ? {
           OR: [
@@ -32,20 +33,14 @@ export async function GET(request: Request) {
       : {}),
   };
 
-  const [rows, total, medical, muster] = await Promise.all([
+  const [rows, stats] = await Promise.all([
     prisma.registration.findMany({
       where,
-      include: { tier: true },
-      orderBy: q ? { fullName: "asc" } : { paidAt: "desc" },
+      orderBy: q ? { fullName: "asc" } : { createdAt: "desc" },
       take: 40,
     }),
-    prisma.registration.count({ where: { status: "PAID" } }),
-    prisma.registration.count({ where: { status: "PAID", medicalCheckedAt: { not: null } } }),
-    prisma.registration.count({ where: { status: "PAID", musterCheckedAt: { not: null } } }),
+    checkpointCounts(),
   ]);
 
-  return NextResponse.json({
-    participants: rows.map(toParticipant),
-    stats: { total, medical, muster },
-  });
+  return NextResponse.json({ participants: rows.map(toParticipant), stats });
 }

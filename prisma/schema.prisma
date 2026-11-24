@@ -12,30 +12,14 @@ datasource db {
   provider = "postgresql"
 }
 
-model TicketTier {
-  id            String         @id // slug: "standard" | "vip" | "student"
-  name          String
-  tagline       String
-  priceKobo     Int // Paystack amounts are in kobo (NGN x 100)
-  perks         String // JSON array of strings
-  featured      Boolean        @default(false)
-  active        Boolean        @default(true)
-  sortOrder     Int            @default(0)
-  registrations Registration[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-}
-
 model Registration {
   id          String  @id @default(cuid())
-  reference   String  @unique // Paystack transaction reference
+  reference   String  @unique // registration reference, e.g. KIL26-M3K9Q2X7TB4H
   accessToken String  @unique // secret token that unlocks the digital pass page
-  passId      String? @unique // KIL-2026-XXXX, assigned once payment is confirmed
-  status      String  @default("PENDING") // PENDING | PAID | FAILED | CANCELLED
-
-  tierId     String
-  tier       TicketTier @relation(fields: [tierId], references: [id])
-  amountKobo Int
+  passId      String? @unique // KIL-2026-XXXX, assigned the moment the form is submitted
+  // REGISTERED | CANCELLED. PENDING only exists on rows from before registration
+  // became free (checkout started, never paid); staff can confirm those.
+  status      String  @default("PENDING")
 
   fullName       String
   email          String
@@ -49,8 +33,6 @@ model Registration {
   kitSize        String // S | M | L | XL | XXL
 
   waiverAcceptedAt DateTime
-  paidAt           DateTime?
-  paystackTxId     String?
   emailSentAt      DateTime?
   smsSentAt        DateTime?
   emailError       String? // last delivery failure, shown to staff
@@ -58,8 +40,19 @@ model Registration {
 
   medicalCheckedAt DateTime? // Dec 30 medical checkup
   medicalCheckedBy String? // staff name
-  musterCheckedAt  DateTime? // Dec 31 4:00 AM Popandi muster
+  musterCheckedAt  DateTime? // Dec 31 4:00 AM Popandi muster — start of the ascent
   musterCheckedBy  String?
+  summitReachedAt  DateTime? // scanned at the summit
+  summitReachedBy  String?
+  descentCheckedAt DateTime? // scanned back at the base — safely off the mountain
+  descentCheckedBy String?
+
+  // Kept from when registration was paid for (before 24 Nov 2026). Never set on
+  // new registrations; shown to staff so earlier payments can be traced or refunded.
+  legacyTicket String? // name of the ticket bought
+  amountKobo   Int     @default(0)
+  paidAt       DateTime?
+  paystackTxId String?
 
   cancelledAt  DateTime?
   cancelReason String?
@@ -71,6 +64,29 @@ model Registration {
   @@index([email])
   @@index([phone])
   @@index([status])
+}
+
+/// Donations from well-wishers and partners, received through Paystack.
+model Donation {
+  id           String    @id @default(cuid())
+  reference    String    @unique // Paystack transaction reference, e.g. KILD-M3K9Q2X7TB4H
+  status       String    @default("PENDING") // PENDING | PAID
+  amountKobo   Int // pledged at checkout; replaced by what Paystack actually received
+  donorType    String // INDIVIDUAL | PARTNER
+  donorName    String
+  organisation String?
+  email        String
+  phone        String? // normalised to 234XXXXXXXXXX
+  message      String?
+  paidAt       DateTime?
+  paystackTxId String?
+  receiptSentAt DateTime?
+  receiptError  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ── Back office ─────────────────────────────────────────────────────────────

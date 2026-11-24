@@ -69,7 +69,7 @@ jobs:
           key: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**') }}
           restore-keys: nextjs-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
-      # Same command Vercel runs: migrations → tier seed → build.
+      # Same command Vercel runs: migrations → build.
       - name: Build (as Vercel does)
         run: npm run vercel-build
 
@@ -85,6 +85,8 @@ jobs:
           curl -fsS -o /dev/null http://localhost:3000/waiver
           # Webhook must reject unsigned requests.
           test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/webhooks/paystack -d '{}')" = "401"
-          # Registration works against Postgres (no Paystack keys in CI → demo mode is off in production → 503 expected).
-          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/register -H 'content-type: application/json' -d '{"tierId":"standard","fullName":"CI Climber","email":"ci@example.com","phone":"08030000009","nextOfKinName":"CI Kin","nextOfKinPhone":"08030000008","bloodGroup":"O+","genotype":"AA","experience":"BEGINNER","kitSize":"M","waiverAccepted":true}')
+          # Registration is free: it works against Postgres with no payment keys and returns a pass.
+          curl -fsS -X POST http://localhost:3000/api/register -H 'content-type: application/json' -d '{"fullName":"CI Climber","email":"ci@example.com","phone":"08030000009","nextOfKinName":"CI Kin","nextOfKinPhone":"08030000008","bloodGroup":"O+","genotype":"AA","experience":"BEGINNER","kitSize":"M","waiverAccepted":true}' | grep -q '"passUrl":"/pass/KIL-2026-'
+          # Donations need Paystack (no keys in CI → demo mode is off in production → 503 expected).
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:3000/api/donations -H 'content-type: application/json' -d '{"amountNaira":"5000","donorType":"INDIVIDUAL","donorName":"CI Donor","email":"ci@example.com"}')
           test "$code" = "503"

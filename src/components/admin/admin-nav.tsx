@@ -3,13 +3,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardList, LogOut, ScanLine, UserCog, Users } from "lucide-react";
+import { Activity, ClipboardList, HandCoins, LogOut, ScanLine, UserCog, Users } from "lucide-react";
 import { BRAND } from "@/data/brand";
 import { cn } from "@/lib/utils";
 
-export type NavLink = { href: string; label: string; icon: "registrations" | "checkin" | "users" | "account" };
+export type NavLink = { href: string; label: string; icon: "registrations" | "checkin" | "tracker" | "donations" | "users" | "account" };
 
-const ICONS = { registrations: ClipboardList, checkin: ScanLine, users: Users, account: UserCog };
+const ICONS = {
+  registrations: ClipboardList,
+  checkin: ScanLine,
+  tracker: Activity,
+  donations: HandCoins,
+  users: Users,
+  account: UserCog,
+};
 
 export function AdminNav({ links, name, roleLabel }: { links: NavLink[]; name: string; roleLabel: string }) {
   const pathname = usePathname();

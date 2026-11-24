@@ -20,8 +20,10 @@ export function paystackConfigured() {
 }
 
 /**
- * Demo mode lets you walk through the whole flow locally without Paystack keys.
- * It can never be active in production.
+ * Paystack receives donations only — registration is free and never touches it.
+ *
+ * Demo mode lets you walk through the donation flow locally without Paystack
+ * keys. It can never be active in production.
  */
 export function demoPaymentsEnabled() {
   return !paystackConfigured() && process.env.NODE_ENV !== "production";

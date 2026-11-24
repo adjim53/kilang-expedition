@@ -16,9 +16,14 @@ export function generatePassId() {
   return `KIL-${EVENT.year}-${randomChars(4)}`;
 }
 
-/** Paystack transaction reference, e.g. KIL26-M3K9Q2X7TB4H */
+/** Registration reference, e.g. KIL26-M3K9Q2X7TB4H */
 export function generateReference() {
   return `KIL26-${randomChars(12)}`;
+}
+
+/** Paystack transaction reference for a donation, e.g. KILD-M3K9Q2X7TB4H */
+export function generateDonationReference() {
+  return `KILD-${randomChars(12)}`;
 }
 
 /** Secret token that unlocks a participant's pass page. */

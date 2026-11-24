@@ -73,6 +73,18 @@
   body {
     background: #fff;
   }
+  /* Registration slips: one climber per sheet of paper. */
+  .slip-sheet {
+    break-inside: avoid;
+  }
+  .slip-sheet + .slip-sheet {
+    break-before: page;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 12mm;
 }
 
 @media (prefers-reduced-motion: reduce) {

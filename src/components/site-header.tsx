@@ -14,6 +14,7 @@ const LINKS = [
   { href: "/#gallery", label: "Gallery" },
   { href: "/#route", label: "Getting There" },
   { href: "/#packing", label: "Packing List" },
+  { href: "/#donate", label: "Donate" },
 ];
 
 export function SiteHeader({ solid = false }: { solid?: boolean }) {

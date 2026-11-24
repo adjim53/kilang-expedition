@@ -2,20 +2,21 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Download, HeartPulse, Loader2, MailWarning, Mountain, Search, TriangleAlert } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Download, Footprints, HeartPulse, House, Loader2, MailWarning, MountainSnow, Printer, Search, TriangleAlert } from "lucide-react";
 import type { RegistrationListItem } from "@/lib/registrations";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, STATUS_LABELS } from "./status-badge";
-import { cn, displayPhone, formatNaira, formatWAT } from "@/lib/utils";
+import { cn, displayPhone, formatWAT } from "@/lib/utils";
 
 type Stats = {
   byStatus: Record<string, number>;
-  revenueKobo: number;
-  byTier: Record<string, number>;
   byKit: Record<string, number>;
   medical: number;
   muster: number;
+  summit: number;
+  descent: number;
+  onMountain: number;
   deliveryProblems: number;
 };
 
@@ -24,7 +25,6 @@ type Data = {
   page: number;
   pageSize: number;
   matching: number;
-  tiers: { id: string; name: string }[];
   stats: Stats;
 };
 
@@ -78,35 +78,47 @@ export function RegistrationsTable({ canExport }: { canExport: boolean }) {
   }, [query, router]);
 
   const stats = data?.stats;
-  const paid = stats?.byStatus.PAID ?? 0;
+  const registered = stats?.byStatus.REGISTERED ?? 0;
+  const unconfirmed = stats?.byStatus.PENDING ?? 0;
   const pages = data ? Math.max(1, Math.ceil(data.matching / data.pageSize)) : 1;
-  const tierName = useMemo(() => Object.fromEntries((data?.tiers ?? []).map((t) => [t.id, t.name])), [data?.tiers]);
 
   const cards: [string, string | number, string?][] = stats
     ? [
-        ["Paid climbers", paid],
-        ["Revenue (paid)", formatNaira(stats.revenueKobo)],
-        ["Awaiting payment", stats.byStatus.PENDING ?? 0],
-        ["Medically cleared", `${stats.medical} / ${paid}`],
-        ["At muster", `${stats.muster} / ${paid}`],
+        ["Registered climbers", registered],
+        ["Medically cleared", `${stats.medical} / ${registered}`],
+        ["Started ascent", `${stats.muster} / ${registered}`],
+        ["Summited", `${stats.summit} / ${stats.muster}`],
+        ["On the mountain", stats.onMountain],
         ["Pass not delivered", stats.deliveryProblems, stats.deliveryProblems ? "warn" : undefined],
       ]
     : [];
+
+  // Slips follow the same search and check-in filters as the table.
+  const slipParams = new URLSearchParams(params.toString());
+  slipParams.delete("page");
+  slipParams.delete("status");
 
   return (
     <main className="container py-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-semibold text-forest-900">Registrations</h1>
-          <p className="mt-1 text-sm text-forest-900/70">Every sign-up, paid or not. Click a climber to see details, fix mistakes or resend their pass.</p>
+          <p className="mt-1 text-sm text-forest-900/70">Every climber who has registered. Click one to see details, fix mistakes, resend their pass or print their slip.</p>
         </div>
-        {canExport && (
+        <div className="flex flex-wrap gap-2">
           <Button asChild variant="outline" size="sm">
-            <a href={`/api/admin/registrations/export?${query}`}>
-              <Download className="h-4 w-4" /> Export CSV
+            <a href={`/admin/slips?${slipParams.toString()}`} target="_blank" rel="noopener">
+              <Printer className="h-4 w-4" /> Print slips
             </a>
           </Button>
-        )}
+          {canExport && (
+            <Button asChild variant="outline" size="sm">
+              <a href={`/api/admin/registrations/export?${query}`}>
+                <Download className="h-4 w-4" /> Export CSV
+              </a>
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -118,15 +130,19 @@ export function RegistrationsTable({ canExport }: { canExport: boolean }) {
         ))}
       </div>
 
-      {stats && paid > 0 && (
+      {stats && registered > 0 && (
         <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-forest-900/70">
-          <span>
-            <strong>Tickets:</strong>{" "}
-            {Object.entries(stats.byTier).map(([t, n]) => `${tierName[t] ?? t} ${n}`).join(" · ")}
-          </span>
           <span>
             <strong>Kit sizes:</strong> {KITS.map((k) => `${k} ${stats.byKit[k] ?? 0}`).join(" · ")}
           </span>
+          <span>
+            <strong>Back at base:</strong> {stats.descent} of {stats.muster} who started
+          </span>
+          {unconfirmed > 0 && (
+            <span>
+              <strong>Not confirmed:</strong> {unconfirmed} from before registration became free — open one to confirm it
+            </span>
+          )}
         </div>
       )}
 
@@ -135,31 +151,28 @@ export function RegistrationsTable({ canExport }: { canExport: boolean }) {
           <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-forest-900/40" />
           <input
             type="search"
-            aria-label="Search by name, pass ID, phone, email or payment reference"
+            aria-label="Search by name, pass ID, phone, email or reference"
             placeholder="Name, pass ID, phone, email or reference"
             className="field-input pl-12"
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
         </div>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <select aria-label="Status" className="field-input" value={params.get("status") ?? ""} onChange={(e) => setParam("status", e.target.value || null)}>
             <option value="">All statuses</option>
             {Object.entries(STATUS_LABELS).map(([k, v]) => (
               <option key={k} value={k}>{v}</option>
             ))}
           </select>
-          <select aria-label="Ticket" className="field-input" value={params.get("tier") ?? ""} onChange={(e) => setParam("tier", e.target.value || null)}>
-            <option value="">All tickets</option>
-            {(data?.tiers ?? []).map((t) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
           <select aria-label="Check-in" className="field-input" value={params.get("checkin") ?? ""} onChange={(e) => setParam("checkin", e.target.value || null)}>
             <option value="">Any check-in</option>
-            <option value="none">Paid, not yet cleared</option>
+            <option value="none">Registered, not yet cleared</option>
             <option value="medical">Medically cleared</option>
-            <option value="muster">At muster</option>
+            <option value="muster">Started the ascent</option>
+            <option value="summit">Reached the summit</option>
+            <option value="descent">Back at base</option>
+            <option value="mountain">Still on the mountain</option>
           </select>
         </div>
       </div>
@@ -185,8 +198,8 @@ export function RegistrationsTable({ canExport }: { canExport: boolean }) {
               <tr>
                 <th className="px-4 py-3">Climber</th>
                 <th className="px-4 py-3">Pass / status</th>
-                <th className="px-4 py-3">Ticket</th>
-                <th className="px-4 py-3">Check-in</th>
+                <th className="px-4 py-3">Kit</th>
+                <th className="px-4 py-3">Checkpoints</th>
                 <th className="px-4 py-3">Registered</th>
               </tr>
             </thead>
@@ -211,12 +224,14 @@ export function RegistrationsTable({ canExport }: { canExport: boolean }) {
                     </span>
                   </td>
                   <td className="block px-4 py-1 text-forest-900/80 md:table-cell md:py-3">
-                    {r.tierName} · {formatNaira(r.amountKobo)} · {r.kitSize}
+                    {r.kitSize}
                   </td>
                   <td className="block px-4 py-1 md:table-cell md:py-3">
                     <span className="flex gap-2">
                       <HeartPulse className={cn("h-4 w-4", r.medicalCheckedAt ? "text-forest-600" : "text-sand-300")} aria-label={r.medicalCheckedAt ? "Medically cleared" : "Not medically cleared"} />
-                      <Mountain className={cn("h-4 w-4", r.musterCheckedAt ? "text-amber-600" : "text-sand-300")} aria-label={r.musterCheckedAt ? "At muster" : "Not at muster"} />
+                      <Footprints className={cn("h-4 w-4", r.musterCheckedAt ? "text-amber-600" : "text-sand-300")} aria-label={r.musterCheckedAt ? "Started the ascent" : "Not started"} />
+                      <MountainSnow className={cn("h-4 w-4", r.summitReachedAt ? "text-forest-600" : "text-sand-300")} aria-label={r.summitReachedAt ? "Reached the summit" : "Not at summit"} />
+                      <House className={cn("h-4 w-4", r.descentCheckedAt ? "text-forest-600" : "text-sand-300")} aria-label={r.descentCheckedAt ? "Back at base" : "Not back at base"} />
                     </span>
                   </td>
                   <td className="block px-4 pb-3 pt-1 text-xs text-forest-900/60 md:table-cell md:py-3">{formatWAT(r.createdAt)}</td>

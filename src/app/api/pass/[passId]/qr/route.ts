@@ -11,7 +11,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ pass
 
   if (passId.length > 40) return new Response("Not found", { status: 404 });
   const registration = await prisma.registration.findUnique({ where: { passId: passId.toUpperCase() } });
-  if (!registration || !registration.passId || registration.status !== "PAID" || !tokensMatch(token, registration.accessToken)) {
+  if (!registration || !registration.passId || registration.status !== "REGISTERED" || !tokensMatch(token, registration.accessToken)) {
     return new Response("Not found", { status: 404 });
   }
 

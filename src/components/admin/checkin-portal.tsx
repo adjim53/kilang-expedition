@@ -1,12 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
+  Activity,
   CircleCheck,
+  Footprints,
   HeartPulse,
+  House,
   Loader2,
-  Mountain,
+  MountainSnow,
   Phone,
   QrCode,
   ScanLine,
@@ -24,26 +28,69 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn, displayPhone, formatWAT } from "@/lib/utils";
 import type { Verdict } from "@/lib/pass-verify";
+import type { CheckpointCounts } from "@/lib/tracker";
+import {
+  blockReason,
+  CHECKPOINT_INFO,
+  CHECKPOINTS,
+  checkpointTime,
+  isCheckpoint,
+  type Checkpoint,
+} from "@/lib/checkpoints";
 
-type Stage = "medical" | "muster";
-type Stats = { total: number; medical: number; muster: number };
+type Stage = Checkpoint;
+type Stats = CheckpointCounts;
 
-const STAGES: Record<Stage, { label: string; when: string; action: string; done: string; icon: React.ElementType }> = {
-  medical: {
-    label: "Medical checkup",
-    when: "Dec 30 · Kaleh Infotech",
-    action: "Mark medically cleared",
-    done: "Medically cleared",
-    icon: HeartPulse,
-  },
-  muster: {
-    label: "Ascent muster",
-    when: "Dec 31 · 4:00 AM · Popandi",
-    action: "Check in for ascent",
-    done: "Checked in for ascent",
-    icon: Mountain,
-  },
+const STAGES = CHECKPOINT_INFO;
+const STAGE_ICONS: Record<Stage, React.ElementType> = {
+  medical: HeartPulse,
+  muster: Footprints,
+  summit: MountainSnow,
+  descent: House,
 };
+const STAGE_BADGE: Record<Stage, "forest" | "gold" | "soft"> = {
+  medical: "forest",
+  muster: "gold",
+  summit: "forest",
+  descent: "soft",
+};
+
+/**
+ * The marshal's checkpoint is remembered on their phone, so a reload at the
+ * summit stays on "Summit". Falls back to memory if the browser blocks storage.
+ */
+const STAGE_KEY = "kil.checkin.stage";
+const STAGE_EVENT = "kil:checkin-stage";
+let memoryStage: Stage = "medical";
+
+function readStage(): Stage {
+  try {
+    const saved = window.localStorage.getItem(STAGE_KEY);
+    if (isCheckpoint(saved)) return saved;
+  } catch {
+    // storage unavailable
+  }
+  return memoryStage;
+}
+
+function writeStage(next: Stage) {
+  memoryStage = next;
+  try {
+    window.localStorage.setItem(STAGE_KEY, next);
+  } catch {
+    // kept in memory only
+  }
+  window.dispatchEvent(new Event(STAGE_EVENT));
+}
+
+function subscribeStage(onChange: () => void) {
+  window.addEventListener(STAGE_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(STAGE_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
 
 // ── QR scanner ──────────────────────────────────────────────────────────────
 function Scanner({ onScan, onClose }: { onScan: (text: string) => void; onClose: () => void }) {
@@ -116,8 +163,8 @@ function ParticipantCard({
   onCheck: (p: Participant, undo: boolean) => void;
   onResend: (p: Participant) => void;
 }) {
-  const done = stage === "medical" ? p.medicalCheckedAt : p.musterCheckedAt;
-  const blocked = stage === "muster" && !p.medicalCheckedAt;
+  const done = checkpointTime(p, stage);
+  const blocked = blockReason(p, stage);
 
   return (
     <li className={cn("rounded-2xl border-2 bg-white p-5", done ? "border-forest-500" : "border-sand-200")}>
@@ -126,7 +173,6 @@ function ParticipantCard({
           <p className="font-display text-2xl font-semibold leading-tight text-forest-900">{p.fullName}</p>
           <p className="mt-0.5 font-mono text-sm font-bold tracking-wide text-forest-700">{p.passId}</p>
         </div>
-        <Badge variant="sand">{p.tierName}</Badge>
       </div>
 
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-4">
@@ -164,14 +210,18 @@ function ParticipantCard({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Badge variant={p.medicalCheckedAt ? "forest" : "sand"}>
-          <HeartPulse className="h-3.5 w-3.5" />
-          {p.medicalCheckedAt ? `Cleared ${formatWAT(p.medicalCheckedAt)}` : "Medical pending"}
-        </Badge>
-        <Badge variant={p.musterCheckedAt ? "gold" : "sand"}>
-          <Mountain className="h-3.5 w-3.5" />
-          {p.musterCheckedAt ? `At muster ${formatWAT(p.musterCheckedAt)}` : "Not at muster"}
-        </Badge>
+        {CHECKPOINTS.map((s) => {
+          const at = checkpointTime(p, s);
+          const Icon = STAGE_ICONS[s];
+          // Later checkpoints only appear once reached; the first two always show.
+          if (!at && (s === "summit" || s === "descent")) return null;
+          return (
+            <Badge key={s} variant={at ? STAGE_BADGE[s] : "sand"}>
+              <Icon className="h-3.5 w-3.5" />
+              {at ? `${STAGES[s].done} ${formatWAT(at)}` : STAGES[s].pending}
+            </Badge>
+          );
+        })}
       </div>
 
       <div className="mt-5 flex flex-wrap items-center gap-2 border-t border-sand-200 pt-4">
@@ -186,7 +236,7 @@ function ParticipantCard({
           </>
         ) : blocked ? (
           <p className="flex gap-2 text-sm font-bold text-clay-600">
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /> Not medically cleared — cannot climb.
+            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {blocked}
           </p>
         ) : (
           <Button variant="forest" disabled={busy} onClick={() => onCheck(p, false)} className="w-full sm:w-auto">
@@ -204,14 +254,18 @@ function ParticipantCard({
 }
 
 // ── Scan result ─────────────────────────────────────────────────────────────
-type ScanResult = { verdict: Verdict; message: string; participant: Participant | null };
+type AutoRecord = { stage: string; recorded: boolean; already: boolean; blocked: string | null };
+type ScanResult = { verdict: Verdict; message: string; participant: Participant | null; auto?: AutoRecord | null };
+
+/** After an automatic record, the scanner reopens by itself for the next climber. */
+const AUTO_NEXT_MS = 2500;
 
 const VERDICT_STYLE: Record<Verdict, { title: string; className: string; icon: React.ElementType }> = {
   valid: { title: "Genuine pass", className: "bg-forest-600", icon: ShieldCheck },
   id_only: { title: "Check photo ID", className: "bg-amber-600", icon: ShieldQuestion },
   not_genuine: { title: "QR does not match", className: "bg-clay-600", icon: ShieldAlert },
   cancelled: { title: "Cancelled", className: "bg-clay-600", icon: ShieldAlert },
-  unpaid: { title: "Not paid", className: "bg-clay-600", icon: ShieldAlert },
+  unconfirmed: { title: "Not confirmed", className: "bg-clay-600", icon: ShieldAlert },
   unknown: { title: "Not a valid pass", className: "bg-clay-600", icon: ShieldAlert },
 };
 
@@ -232,9 +286,25 @@ function ScanResultSheet({
   onNext: () => void;
   onClose: () => void;
 }) {
-  const style = VERDICT_STYLE[result.verdict];
-  const Icon = style.icon;
   const admissible = result.verdict === "valid" || result.verdict === "id_only";
+  const auto = result.auto && isCheckpoint(result.auto.stage) ? result.auto : null;
+  const autoStage = auto && isCheckpoint(auto.stage) ? auto.stage : stage;
+  const autoTime = result.participant ? checkpointTime(result.participant, autoStage) : null;
+
+  // What the marshal needs to know first: was this scan recorded?
+  let style = VERDICT_STYLE[result.verdict];
+  let message = result.message;
+  if (auto?.recorded) {
+    style = { title: `${STAGES[autoStage].done} — recorded`, className: "bg-forest-600", icon: CircleCheck };
+    message = `Recorded automatically at ${formatWAT(autoTime)}. Scanning the next climber in a moment…`;
+  } else if (auto?.already) {
+    style = { title: "Already recorded", className: "bg-amber-600", icon: ShieldQuestion };
+    message = `This climber was already recorded here at ${formatWAT(autoTime)}. Nothing was changed.`;
+  } else if (auto?.blocked) {
+    style = { title: "Not recorded", className: "bg-clay-600", icon: ShieldAlert };
+    message = auto.blocked;
+  }
+  const Icon = style.icon;
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-forest-950/90 p-3 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="scan-verdict">
       <div className="mx-auto max-w-xl">
@@ -242,7 +312,7 @@ function ScanResultSheet({
           <p id="scan-verdict" className="flex items-center gap-3 text-3xl font-bold">
             <Icon className="h-10 w-10 shrink-0" /> {style.title}
           </p>
-          <p className="mt-2 text-sm font-semibold text-white/90">{result.message}</p>
+          <p className="mt-2 text-sm font-semibold text-white/90">{message}</p>
         </div>
         {result.participant && (
           <ul className="mt-3">
@@ -268,7 +338,8 @@ function ScanResultSheet({
 // ── Portal ──────────────────────────────────────────────────────────────────
 export function CheckinPortal() {
   const router = useRouter();
-  const [stage, setStage] = useState<Stage>("medical");
+  const stage = useSyncExternalStore(subscribeStage, readStage, () => "medical" as Stage);
+  const setStage = writeStage;
   const [query, setQuery] = useState("");
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -278,6 +349,16 @@ export function CheckinPortal() {
   const [notice, setNotice] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
   const requestId = useRef(0);
+
+  // Continuous scanning: once a scan has been recorded automatically, reopen the camera.
+  useEffect(() => {
+    if (!scanResult?.auto?.recorded) return;
+    const timer = setTimeout(() => {
+      setScanResult(null);
+      setScanning(true);
+    }, AUTO_NEXT_MS);
+    return () => clearTimeout(timer);
+  }, [scanResult]);
 
   const search = useCallback(
     async (q: string) => {
@@ -312,17 +393,20 @@ export function CheckinPortal() {
         const res = await fetch("/api/admin/scan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: text }),
+          body: JSON.stringify({ code: text, stage }),
         });
         if (res.status === 401) return router.replace("/admin/login?next=/admin/checkin");
         const json = await res.json();
         if (!res.ok) setNotice({ tone: "error", text: json.error ?? "Couldn't check that code." });
-        else setScanResult(json);
+        else {
+          setScanResult(json);
+          if (json.auto?.recorded) void search(query);
+        }
       } catch {
-        setNotice({ tone: "error", text: "No connection — couldn't check the pass. Search by name instead." });
+        setNotice({ tone: "error", text: "No connection — nothing was recorded. Try again when the signal returns, or note the pass ID." });
       }
     },
-    [router],
+    [router, stage, search, query],
   );
 
   async function check(p: Participant, undo: boolean) {
@@ -376,9 +460,12 @@ export function CheckinPortal() {
 
 
   const statCells: [string, number | undefined][] = [
-    ["Paid climbers", stats?.total],
+    ["Registered", stats?.total],
     ["Medically cleared", stats?.medical],
-    ["At muster", stats?.muster],
+    ["Started ascent", stats?.muster],
+    ["Summited", stats?.summit],
+    ["Back at base", stats?.descent],
+    ["On the mountain", stats?.onMountain],
   ];
 
   return (
@@ -389,8 +476,14 @@ export function CheckinPortal() {
             <p className="eyebrow text-amber-400">Kilang Expedition 2026</p>
             <h1 className="text-2xl font-semibold">Marshal check-in</h1>
           </div>
+          <Link
+            href="/admin/tracker"
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1.5 text-sm font-bold hover:bg-white/20"
+          >
+            <Activity className="h-4 w-4 text-amber-400" /> Summit tracker
+          </Link>
         </div>
-        <div className="container grid grid-cols-3 gap-2 pb-5">
+        <div className="container grid grid-cols-3 gap-2 pb-5 sm:grid-cols-6">
           {statCells.map(([label, value]) => (
             <div key={label} className="rounded-xl bg-white/10 p-3">
               <p className="font-display text-3xl font-semibold tabular-nums">{value ?? "–"}</p>
@@ -401,9 +494,9 @@ export function CheckinPortal() {
       </header>
 
       <div className="container mt-5">
-        <div role="tablist" aria-label="Check-in stage" className="grid grid-cols-2 gap-2">
-          {(Object.keys(STAGES) as Stage[]).map((s) => {
-            const Icon = STAGES[s].icon;
+        <div role="tablist" aria-label="Checkpoint" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {CHECKPOINTS.map((s) => {
+            const Icon = STAGE_ICONS[s];
             return (
               <button
                 key={s}
@@ -422,6 +515,12 @@ export function CheckinPortal() {
             );
           })}
         </div>
+
+        <p className="mt-3 text-sm text-forest-900/70">
+          {STAGES[stage].auto
+            ? `Scanning a genuine pass records “${STAGES[stage].done.toLowerCase()}” automatically, then the camera reopens for the next climber.`
+            : "Scanning shows the climber; the medical team confirms clearance with one tap."}
+        </p>
 
         <div className="mt-4 flex gap-2">
           <div className="relative flex-1">
@@ -468,8 +567,8 @@ export function CheckinPortal() {
         {!loading && participants.length === 0 ? (
           <p className="mt-3 rounded-2xl border-2 border-dashed border-sand-300 p-8 text-center text-forest-900/70">
             {query
-              ? "No paid participant matches that search. Check the spelling or scan their QR code."
-              : "No paid registrations yet."}
+              ? "No registered climber matches that search. Check the spelling or scan their QR code."
+              : "No registrations yet."}
           </p>
         ) : (
           <ul className="mt-3 space-y-3">

@@ -12,5 +12,12 @@ export const BRAND = {
       width: 640,
       height: 394,
     },
+    {
+      name: "Plateau Hikers and Tour Association",
+      src: "/brand/plateau-hikers.png",
+      alt: "Plateau Hikers and Tour Association (PHATA) — Adventure is life",
+      width: 640,
+      height: 640,
+    },
   ],
 } as const;

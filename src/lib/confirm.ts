@@ -1,86 +1,80 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type Registration } from "@prisma/client";
 import { prisma } from "./prisma";
-import { generatePassId } from "./ids";
+import { generateAccessToken, generatePassId, generateReference } from "./ids";
 import { sendPassEmail } from "./email";
 import { passConfirmationSms, sendSms } from "./sms";
 
-export type ConfirmResult =
-  | { ok: true; passId: string; accessToken: string; alreadyConfirmed: boolean }
-  | { ok: false; reason: "not_found" | "amount_mismatch" | "error" };
+const isCollision = (err: unknown) =>
+  err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+
+export type NewRegistration = Omit<
+  Prisma.RegistrationCreateInput,
+  "reference" | "accessToken" | "passId" | "status"
+>;
 
 /**
- * Marks a registration as paid, assigns its KIL-2026-XXXX pass ID and sends
- * the email + SMS. Safe to call more than once for the same reference: the
- * webhook and the browser's verify call often race, and only one of them wins.
+ * Registration is free and instant: store the climber as REGISTERED with a
+ * KIL-2026-XXXX pass ID straight away. Retries if a random ID is already taken.
  */
-export async function confirmRegistration(
-  reference: string,
-  payment: { transactionId: string; amountKobo: number },
-): Promise<ConfirmResult> {
-  const existing = await prisma.registration.findUnique({ where: { reference } });
+export async function createRegistration(data: NewRegistration): Promise<Registration> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await prisma.registration.create({
+        data: {
+          ...data,
+          reference: generateReference(),
+          accessToken: generateAccessToken(),
+          passId: generatePassId(),
+          status: "REGISTERED",
+        },
+      });
+    } catch (err) {
+      if (!isCollision(err) || attempt >= 7) throw err;
+    }
+  }
+}
+
+export type ConfirmResult = { ok: true; passId: string } | { ok: false; reason: "not_found" | "not_pending" | "error" };
+
+/**
+ * For rows left PENDING from before registration became free (checkout was
+ * started but never paid): confirm the place, assign the pass ID and send the
+ * pass. Atomic — if two staff click at once, exactly one wins.
+ */
+export async function confirmPendingRegistration(id: string): Promise<ConfirmResult> {
+  const existing = await prisma.registration.findUnique({ where: { id } });
   if (!existing) return { ok: false, reason: "not_found" };
+  if (existing.status !== "PENDING") return { ok: false, reason: "not_pending" };
 
-  if (existing.status === "PAID" && existing.passId) {
-    return { ok: true, passId: existing.passId, accessToken: existing.accessToken, alreadyConfirmed: true };
-  }
-
-  if (payment.amountKobo < existing.amountKobo) {
-    console.error(
-      `[confirm] amount mismatch for ${reference}: paid ${payment.amountKobo}, expected ${existing.amountKobo}`,
-    );
-    return { ok: false, reason: "amount_mismatch" };
-  }
-
-  // Claim the registration. The `status: "PENDING"` filter makes this atomic:
-  // if two requests race, exactly one updates a row. Retry on pass-ID collision.
   let won = false;
   for (let attempt = 0; attempt < 8 && !won; attempt++) {
     try {
       const result = await prisma.registration.updateMany({
-        where: { reference, status: "PENDING" },
-        data: {
-          status: "PAID",
-          passId: generatePassId(),
-          paidAt: new Date(),
-          paystackTxId: payment.transactionId,
-        },
+        where: { id, status: "PENDING" },
+        data: { status: "REGISTERED", passId: existing.passId ?? generatePassId() },
       });
       if (result.count === 0) break; // someone else confirmed it first
       won = true;
     } catch (err) {
-      const collision = err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
-      if (!collision) {
+      if (!isCollision(err)) {
         console.error("[confirm] failed to confirm registration", err);
         return { ok: false, reason: "error" };
       }
     }
   }
 
-  const confirmed = await prisma.registration.findUnique({
-    where: { reference },
-    include: { tier: true },
-  });
-  if (!confirmed || confirmed.status !== "PAID" || !confirmed.passId) {
-    return { ok: false, reason: "error" };
-  }
-
+  const confirmed = await prisma.registration.findUnique({ where: { id } });
+  if (!confirmed || confirmed.status !== "REGISTERED" || !confirmed.passId) return { ok: false, reason: "error" };
   if (won) await dispatchPass(confirmed.id);
-
-  return {
-    ok: true,
-    passId: confirmed.passId,
-    accessToken: confirmed.accessToken,
-    alreadyConfirmed: !won,
-  };
+  return { ok: true, passId: confirmed.passId };
 }
 
 /** Sends (or re-sends) the pass email and SMS, recording what was delivered. */
 export async function dispatchPass(registrationId: string) {
-  const reg = await prisma.registration.findUnique({
-    where: { id: registrationId },
-    include: { tier: true },
-  });
-  if (!reg || !reg.passId || reg.status !== "PAID") return { email: false, sms: false, emailError: null, smsError: null };
+  const reg = await prisma.registration.findUnique({ where: { id: registrationId } });
+  if (!reg || !reg.passId || reg.status !== "REGISTERED") {
+    return { email: false, sms: false, emailError: null, smsError: null };
+  }
 
   const [email, sms] = await Promise.all([
     sendPassEmail({
@@ -88,7 +82,6 @@ export async function dispatchPass(registrationId: string) {
       email: reg.email,
       passId: reg.passId,
       accessToken: reg.accessToken,
-      tierName: reg.tier.name,
     }),
     sendSms(reg.phone, passConfirmationSms(reg.passId)),
   ]);

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { confirmRegistration } from "@/lib/confirm";
+import { confirmDonation } from "@/lib/donations";
 import { isValidWebhookSignature, verifyTransaction } from "@/lib/paystack";
 
 export const runtime = "nodejs";
@@ -10,7 +10,9 @@ export const runtime = "nodejs";
  *
  * 1. Check the x-paystack-signature header (HMAC-SHA512 of the raw body).
  * 2. Re-verify the transaction reference with Paystack's API.
- * 3. Confirm the registration → pass ID, email and SMS.
+ * 3. Mark the donation as received → thank-you receipt by email.
+ *
+ * Only donations go through Paystack; registration is free.
  *
  * Always answers 200 once the signature is valid so Paystack stops retrying.
  */
@@ -43,8 +45,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ received: true });
   }
 
-  const result = await confirmRegistration(reference, { transactionId: tx.id, amountKobo: tx.amountKobo });
-  if (!result.ok) console.error(`[webhook] could not confirm ${reference}: ${result.reason}`);
+  const result = await confirmDonation(reference, { transactionId: tx.id, amountKobo: tx.amountKobo });
+  if (!result.ok) console.error(`[webhook] could not confirm donation ${reference}: ${result.reason}`);
 
   return NextResponse.json({ received: true });
 }

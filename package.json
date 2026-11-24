@@ -12,14 +12,14 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:seed:demo": "tsx prisma/seed.ts --demo",
     "db:studio": "prisma studio",
-    "setup": "prisma migrate deploy && tsx prisma/seed.ts",
+    "setup": "prisma migrate deploy",
     "check:integrations": "tsx scripts/check-integrations.ts",
     "admin:create": "tsx scripts/create-admin.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "vercel-build": "prisma migrate deploy && tsx prisma/seed.ts && next build"
+    "vercel-build": "prisma migrate deploy && next build"
   },
   "dependencies": {
     "@fontsource-variable/fraunces": "^5.3.0",

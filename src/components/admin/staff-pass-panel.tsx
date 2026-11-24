@@ -2,15 +2,30 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CircleCheck, HeartPulse, Loader2, Mountain, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
+import { CircleCheck, Footprints, HeartPulse, House, Loader2, MountainSnow, ShieldAlert, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { Participant } from "@/lib/participants";
 import { Button } from "@/components/ui/button";
 import { formatWAT } from "@/lib/utils";
+import {
+  blockReason,
+  CHECKPOINT_FIELDS,
+  CHECKPOINT_INFO,
+  CHECKPOINTS,
+  checkpointTime,
+  type Checkpoint,
+} from "@/lib/checkpoints";
+
+const ICONS: Record<Checkpoint, React.ElementType> = {
+  medical: HeartPulse,
+  muster: Footprints,
+  summit: MountainSnow,
+  descent: House,
+};
 
 /**
  * Shown on a pass page only to signed-in staff — e.g. a marshal who scanned the
  * climber's QR with their phone's camera app. Confirms the pass and lets them
- * check the climber in without opening the portal.
+ * record the climber's next checkpoint without opening the portal.
  */
 export function StaffPassPanel({ participant, staffName }: { participant: Participant; staffName: string }) {
   const [p, setP] = useState(participant);
@@ -28,7 +43,7 @@ export function StaffPassPanel({ participant, staffName }: { participant: Partic
     );
   }
 
-  async function check(stage: "medical" | "muster") {
+  async function check(stage: Checkpoint) {
     setBusy(stage);
     setError(null);
     try {
@@ -51,7 +66,7 @@ export function StaffPassPanel({ participant, staffName }: { participant: Partic
       <div className="flex items-center gap-3 bg-forest-600 p-4 text-white">
         <ShieldCheck className="h-8 w-8 shrink-0" />
         <div>
-          <p className="text-xl font-bold leading-tight">Genuine pass · paid</p>
+          <p className="text-xl font-bold leading-tight">Genuine pass · registered</p>
           <p className="text-xs text-forest-100">Staff view · signed in as {staffName}</p>
         </div>
       </div>
@@ -73,33 +88,42 @@ export function StaffPassPanel({ participant, staffName }: { participant: Partic
           </p>
         )}
 
-        {p.medicalCheckedAt ? (
-          <p className="flex items-center gap-2 text-sm font-bold text-forest-700">
-            <CircleCheck className="h-5 w-5" /> Medically cleared {formatWAT(p.medicalCheckedAt)}
-            {p.medicalCheckedBy && <span className="font-normal text-forest-900/60">by {p.medicalCheckedBy}</span>}
-          </p>
-        ) : (
-          <Button variant="forest" className="w-full" disabled={busy !== null} onClick={() => check("medical")}>
-            {busy === "medical" ? <Loader2 className="h-5 w-5 animate-spin" /> : <HeartPulse className="h-5 w-5" />}
-            Mark medically cleared
-          </Button>
-        )}
-
-        {p.musterCheckedAt ? (
-          <p className="flex items-center gap-2 text-sm font-bold text-forest-700">
-            <CircleCheck className="h-5 w-5" /> Checked in for ascent {formatWAT(p.musterCheckedAt)}
-            {p.musterCheckedBy && <span className="font-normal text-forest-900/60">by {p.musterCheckedBy}</span>}
-          </p>
-        ) : p.medicalCheckedAt ? (
-          <Button className="w-full" disabled={busy !== null} onClick={() => check("muster")}>
-            {busy === "muster" ? <Loader2 className="h-5 w-5 animate-spin" /> : <Mountain className="h-5 w-5" />}
-            Check in for ascent
-          </Button>
-        ) : (
-          <p className="flex gap-2 text-sm font-bold text-clay-600">
-            <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /> Not medically cleared — cannot climb yet.
-          </p>
-        )}
+        {CHECKPOINTS.map((stage) => {
+          const at = checkpointTime(p, stage);
+          const by = p[CHECKPOINT_FIELDS[stage].by];
+          const info = CHECKPOINT_INFO[stage];
+          const Icon = ICONS[stage];
+          if (at) {
+            return (
+              <p key={stage} className="flex flex-wrap items-center gap-x-2 text-sm font-bold text-forest-700">
+                <CircleCheck className="h-5 w-5" /> {info.done} {formatWAT(at)}
+                {by && <span className="font-normal text-forest-900/60">by {by}</span>}
+              </p>
+            );
+          }
+          const blocked = blockReason(p, stage);
+          if (blocked) {
+            // Say why once, at the ascent start; the summit and return follow from it.
+            if (stage !== "muster") return null;
+            return (
+              <p key={stage} className="flex gap-2 text-sm font-bold text-clay-600">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" /> {info.label}: {blocked}
+              </p>
+            );
+          }
+          return (
+            <Button
+              key={stage}
+              variant={stage === "medical" ? "forest" : "primary"}
+              className="w-full"
+              disabled={busy !== null}
+              onClick={() => check(stage)}
+            >
+              {busy === stage ? <Loader2 className="h-5 w-5 animate-spin" /> : <Icon className="h-5 w-5" />}
+              {info.action}
+            </Button>
+          );
+        })}
 
         {error && (
           <p role="alert" className="field-error">

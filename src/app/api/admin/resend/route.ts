@@ -19,8 +19,8 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Invalid request." }, { status: 400 });
 
   const registration = await prisma.registration.findUnique({ where: { passId: parsed.data.passId.toUpperCase() } });
-  if (!registration || registration.status !== "PAID") {
-    return NextResponse.json({ error: "No paid participant with that pass ID." }, { status: 404 });
+  if (!registration || registration.status !== "REGISTERED") {
+    return NextResponse.json({ error: "No registered climber with that pass ID." }, { status: 404 });
   }
   // Each resend costs an SMS; stop a stuck button from draining the Termii balance.
   if (!(await hit(`resend:${registration.id}`, 5, 60 * 60 * 1000))) {

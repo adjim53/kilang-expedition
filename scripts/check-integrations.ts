@@ -28,7 +28,7 @@ async function getJson(url: string, init?: RequestInit) {
 async function checkPaystack() {
   const secret = process.env.PAYSTACK_SECRET_KEY ?? "";
   const pub = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? "";
-  if (!secret || !pub) return report("Paystack", "fail", "PAYSTACK_SECRET_KEY / NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY not set (demo mode in dev, registration disabled in production)");
+  if (!secret || !pub) return report("Paystack", "fail", "PAYSTACK_SECRET_KEY / NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY not set (demo mode in dev, donations disabled in production; registration is unaffected)");
 
   const secretMode = secret.startsWith("sk_live_") ? "live" : secret.startsWith("sk_test_") ? "test" : "unknown";
   const pubMode = pub.startsWith("pk_live_") ? "live" : pub.startsWith("pk_test_") ? "test" : "unknown";

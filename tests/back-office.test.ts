@@ -49,17 +49,21 @@ describe("roles", () => {
     expect(can("MARSHAL", "users.manage")).toBe(false);
   });
 
-  it("staff manage registrations but not users, cancellations or offline payments", () => {
+  it("staff manage registrations but not users, cancellations or donations", () => {
     expect(can("STAFF", "registrations.edit")).toBe(true);
     expect(can("STAFF", "registrations.export")).toBe(true);
     expect(can("STAFF", "users.manage")).toBe(false);
     expect(can("STAFF", "registrations.cancel")).toBe(false);
-    expect(can("STAFF", "payments.offline")).toBe(false);
+    expect(can("STAFF", "donations.view")).toBe(false);
   });
 
   it("admins can do everything", () => {
     expect(can("ADMIN", "users.manage")).toBe(true);
-    expect(can("ADMIN", "payments.offline")).toBe(true);
+    expect(can("ADMIN", "donations.view")).toBe(true);
+  });
+
+  it("marshals cannot see donations", () => {
+    expect(can("MARSHAL", "donations.view")).toBe(false);
   });
 
   it("unknown roles can do nothing", () => {

@@ -1,6 +1,6 @@
-import type { Registration, TicketTier } from "@prisma/client";
+import type { Registration } from "@prisma/client";
 
-/** The shape the check-in portal and scanner work with. */
+/** The shape the check-in portal, scanner and summit tracker work with. */
 export type Participant = {
   id: string;
   passId: string;
@@ -8,7 +8,6 @@ export type Participant = {
   fullName: string;
   email: string;
   phone: string;
-  tierName: string;
   bloodGroup: string;
   genotype: string;
   experience: string;
@@ -20,11 +19,15 @@ export type Participant = {
   medicalCheckedBy: string | null;
   musterCheckedAt: string | null;
   musterCheckedBy: string | null;
+  summitReachedAt: string | null;
+  summitReachedBy: string | null;
+  descentCheckedAt: string | null;
+  descentCheckedBy: string | null;
   emailSent: boolean;
   smsSent: boolean;
 };
 
-export function toParticipant(r: Registration & { tier: TicketTier }): Participant {
+export function toParticipant(r: Registration): Participant {
   return {
     id: r.id,
     passId: r.passId ?? "",
@@ -32,7 +35,6 @@ export function toParticipant(r: Registration & { tier: TicketTier }): Participa
     fullName: r.fullName,
     email: r.email,
     phone: r.phone,
-    tierName: r.tier.name,
     bloodGroup: r.bloodGroup,
     genotype: r.genotype,
     experience: r.experience,
@@ -44,6 +46,10 @@ export function toParticipant(r: Registration & { tier: TicketTier }): Participa
     medicalCheckedBy: r.medicalCheckedBy,
     musterCheckedAt: r.musterCheckedAt?.toISOString() ?? null,
     musterCheckedBy: r.musterCheckedBy,
+    summitReachedAt: r.summitReachedAt?.toISOString() ?? null,
+    summitReachedBy: r.summitReachedBy,
+    descentCheckedAt: r.descentCheckedAt?.toISOString() ?? null,
+    descentCheckedBy: r.descentCheckedBy,
     emailSent: Boolean(r.emailSentAt),
     smsSent: Boolean(r.smsSentAt),
   };

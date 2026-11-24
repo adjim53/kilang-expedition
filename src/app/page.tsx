@@ -5,11 +5,9 @@ import { Legend } from "@/components/sections/legend";
 import { Schedule } from "@/components/sections/schedule";
 import { Gallery } from "@/components/sections/gallery";
 import { Register } from "@/components/sections/register";
+import { Donate } from "@/components/sections/donate";
 import { RouteMap } from "@/components/sections/route-map";
 import { Packing, TravelGuide } from "@/components/sections/logistics";
-
-// Ticket prices come from the database; refresh the page data every minute.
-export const revalidate = 60;
 
 export default function HomePage() {
   return (
@@ -21,6 +19,7 @@ export default function HomePage() {
         <Schedule />
         <Gallery />
         <Register />
+        <Donate />
         <RouteMap />
         <TravelGuide />
         <Packing />

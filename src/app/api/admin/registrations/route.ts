@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApi } from "@/lib/admin-auth";
 import { filtersFromSearchParams, toListItem, whereFor } from "@/lib/registrations";
+import { checkpointCounts } from "@/lib/tracker";
 
 export const runtime = "nodejs";
 
@@ -16,41 +17,35 @@ export async function GET(request: Request) {
   const where = whereFor(filtersFromSearchParams(params));
   const page = Math.max(1, Math.min(1000, Number(params.get("page")) || 1));
 
-  const [rows, matching, byStatus, revenue, byTier, byKit, medical, muster, deliveryProblems] = await Promise.all([
+  const [rows, matching, byStatus, byKit, checkpoints, deliveryProblems] = await Promise.all([
     prisma.registration.findMany({
       where,
-      include: { tier: true },
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
     }),
     prisma.registration.count({ where }),
     prisma.registration.groupBy({ by: ["status"], _count: true }),
-    prisma.registration.aggregate({ where: { status: "PAID" }, _sum: { amountKobo: true } }),
-    prisma.registration.groupBy({ by: ["tierId"], where: { status: "PAID" }, _count: true }),
-    prisma.registration.groupBy({ by: ["kitSize"], where: { status: "PAID" }, _count: true }),
-    prisma.registration.count({ where: { status: "PAID", medicalCheckedAt: { not: null } } }),
-    prisma.registration.count({ where: { status: "PAID", musterCheckedAt: { not: null } } }),
+    prisma.registration.groupBy({ by: ["kitSize"], where: { status: "REGISTERED" }, _count: true }),
+    checkpointCounts(),
     prisma.registration.count({
-      where: { status: "PAID", OR: [{ emailSentAt: null }, { smsSentAt: null }] },
+      where: { status: "REGISTERED", OR: [{ emailSentAt: null }, { smsSentAt: null }] },
     }),
   ]);
-
-  const tiers = await prisma.ticketTier.findMany({ orderBy: { sortOrder: "asc" }, select: { id: true, name: true } });
 
   return NextResponse.json({
     registrations: rows.map(toListItem),
     page,
     pageSize: PAGE_SIZE,
     matching,
-    tiers,
     stats: {
       byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
-      revenueKobo: revenue._sum.amountKobo ?? 0,
-      byTier: Object.fromEntries(byTier.map((t) => [t.tierId, t._count])),
       byKit: Object.fromEntries(byKit.map((k) => [k.kitSize, k._count])),
-      medical,
-      muster,
+      medical: checkpoints.medical,
+      muster: checkpoints.muster,
+      summit: checkpoints.summit,
+      descent: checkpoints.descent,
+      onMountain: checkpoints.onMountain,
       deliveryProblems,
     },
   });

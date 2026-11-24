@@ -13,6 +13,11 @@ export function passUrl(passId: string, accessToken: string) {
   return `${appUrl()}/pass/${passId}?t=${accessToken}`;
 }
 
+/** The printable registration slip for the same pass. */
+export function slipUrl(passId: string, accessToken: string) {
+  return `${appUrl()}/pass/${passId}/slip?t=${accessToken}`;
+}
+
 export function qrPngBuffer(text: string): Promise<Buffer> {
   return QRCode.toBuffer(text, { ...QR_OPTIONS, type: "png" });
 }

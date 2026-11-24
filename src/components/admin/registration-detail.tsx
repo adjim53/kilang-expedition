@@ -6,16 +6,15 @@ import {
   ArrowLeft,
   Ban,
   CircleCheck,
-  CreditCard,
   History,
   Link2,
   Loader2,
   Pencil,
-  RefreshCw,
+  Printer,
   RotateCcw,
   Send,
+  TicketCheck,
   TriangleAlert,
-  Wallet,
 } from "lucide-react";
 import type { RegistrationDetail } from "@/lib/registrations";
 import { BLOOD_GROUPS, EXPERIENCE_LABELS, EXPERIENCE_LEVELS, GENOTYPES, KIT_SIZES } from "@/lib/validation";
@@ -24,7 +23,7 @@ import { StatusBadge } from "./status-badge";
 import { cn, displayPhone, formatNaira, formatWAT } from "@/lib/utils";
 
 type HistoryItem = { id: string; at: string; who: string; action: string; details: string | null };
-type Permissions = { edit: boolean; resend: boolean; verify: boolean; cancel: boolean; offline: boolean };
+type Permissions = { edit: boolean; resend: boolean; cancel: boolean };
 type Loaded =
   | { error: string }
   | { registration: RegistrationDetail; history: HistoryItem[]; permissions: Permissions };
@@ -39,7 +38,7 @@ async function fetchRegistration(id: string): Promise<Loaded> {
   }
 }
 
-type Action = "resend" | "verify_payment" | "regenerate_link" | "cancel" | "reinstate" | "mark_paid_offline";
+type Action = "resend" | "confirm" | "regenerate_link" | "cancel" | "reinstate";
 
 function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
@@ -169,7 +168,7 @@ export function RegistrationDetailView({ id }: { id: string }) {
   const [notice, setNotice] = useState<{ ok: boolean; text: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState<Action | null>(null);
-  const [asking, setAsking] = useState<"cancel" | "mark_paid_offline" | null>(null);
+  const [asking, setAsking] = useState<"cancel" | null>(null);
 
   const apply = useCallback((loaded: Loaded) => {
     if ("error" in loaded) return setError(loaded.error);
@@ -220,7 +219,7 @@ export function RegistrationDetailView({ id }: { id: string }) {
     return <main className="container py-8"><p className="flex items-center gap-2 text-forest-900/70"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</p></main>;
   }
 
-  const paid = r.status === "PAID";
+  const registered = r.status === "REGISTERED";
   const actionButton = (action: Action, label: string, Icon: React.ElementType, props: { confirm?: string; variant?: "forest" | "ghost" | "outline" | "danger" } = {}) => (
     <Button size="sm" variant={props.variant ?? "outline"} disabled={busy !== null} onClick={() => act(action, {}, props.confirm)}>
       {busy === action ? <Loader2 className="h-4 w-4 animate-spin" /> : <Icon className="h-4 w-4" />} {label}
@@ -239,7 +238,6 @@ export function RegistrationDetailView({ id }: { id: string }) {
           <p className="mt-1 flex flex-wrap items-center gap-2 text-sm">
             {r.passId && <span className="font-mono font-bold text-forest-700">{r.passId}</span>}
             <StatusBadge status={r.status} />
-            <span className="text-forest-900/60">{r.tierName} · {formatNaira(r.amountKobo)}</span>
           </p>
         </div>
         {perm.edit && !editing && r.status !== "CANCELLED" && (
@@ -291,46 +289,72 @@ export function RegistrationDetailView({ id }: { id: string }) {
             </Section>
           )}
 
-          <Section title="Payment and pass">
+          <Section title="Pass">
             <dl className="grid gap-4 sm:grid-cols-2">
               <Field label="Registered">{formatWAT(r.createdAt)}</Field>
-              <Field label="Paid">{formatWAT(r.paidAt)}</Field>
-              <Field label="Paystack reference"><span className="font-mono text-xs">{r.reference}</span></Field>
-              <Field label="Transaction"><span className="font-mono text-xs">{r.paystackTxId}</span></Field>
+              <Field label="Reference"><span className="font-mono text-xs">{r.reference}</span></Field>
               <Field label="Pass email">
-                {r.emailSentAt ? `Sent ${formatWAT(r.emailSentAt)}` : paid ? <span className="text-clay-600">Not delivered{r.emailError ? ` — ${r.emailError}` : ""}</span> : "—"}
+                {r.emailSentAt ? `Sent ${formatWAT(r.emailSentAt)}` : registered ? <span className="text-clay-600">Not delivered{r.emailError ? ` — ${r.emailError}` : ""}</span> : "—"}
               </Field>
               <Field label="Pass SMS">
-                {r.smsSentAt ? `Sent ${formatWAT(r.smsSentAt)}` : paid ? <span className="text-clay-600">Not delivered{r.smsError ? ` — ${r.smsError}` : ""}</span> : "—"}
+                {r.smsSentAt ? `Sent ${formatWAT(r.smsSentAt)}` : registered ? <span className="text-clay-600">Not delivered{r.smsError ? ` — ${r.smsError}` : ""}</span> : "—"}
               </Field>
             </dl>
+            {r.status === "PENDING" && (
+              <p className="mt-4 rounded-xl bg-sand-50 p-3 text-sm text-forest-900/80">
+                This climber started registering when registration still had a fee and never paid, so no pass was
+                issued. Registration is free now: use “Confirm and issue pass” to register them.
+              </p>
+            )}
           </Section>
 
-          <Section title="Check-in">
+          <Section title="Checkpoints">
             <dl className="grid gap-4 sm:grid-cols-2">
               <Field label="Medical checkup (Dec 30)">
                 {r.medicalCheckedAt ? `Cleared ${formatWAT(r.medicalCheckedAt)}${r.medicalCheckedBy ? ` by ${r.medicalCheckedBy}` : ""}` : "Not yet"}
               </Field>
-              <Field label="Ascent muster (Dec 31)">
+              <Field label="Ascent start (Dec 31)">
                 {r.musterCheckedAt ? `Checked in ${formatWAT(r.musterCheckedAt)}${r.musterCheckedBy ? ` by ${r.musterCheckedBy}` : ""}` : "Not yet"}
+              </Field>
+              <Field label="Summit">
+                {r.summitReachedAt ? `Reached ${formatWAT(r.summitReachedAt)}${r.summitReachedBy ? ` — scanned by ${r.summitReachedBy}` : ""}` : "Not yet"}
+              </Field>
+              <Field label="Back at base">
+                {r.descentCheckedAt ? `Returned ${formatWAT(r.descentCheckedAt)}${r.descentCheckedBy ? ` — scanned by ${r.descentCheckedBy}` : ""}` : "Not yet"}
               </Field>
             </dl>
           </Section>
+
+          {r.earlierPayment && (
+            <Section title="Earlier payment">
+              <p className="text-sm text-forest-900/70">
+                Paid before registration became free. Kept for your records; any refund is made in the Paystack dashboard.
+              </p>
+              <dl className="mt-3 grid gap-4 sm:grid-cols-2">
+                <Field label="Amount paid">{formatNaira(r.earlierPayment.amountKobo)}</Field>
+                <Field label="Paid">{formatWAT(r.earlierPayment.paidAt)}</Field>
+                <Field label="Ticket bought">{r.earlierPayment.ticket}</Field>
+                <Field label="Transaction"><span className="font-mono text-xs">{r.earlierPayment.transaction}</span></Field>
+              </dl>
+            </Section>
+          )}
         </div>
 
         <aside className="space-y-4">
           <Section title="Actions">
-            <div className="flex flex-col items-stretch gap-2 [&>button]:justify-start">
-              {paid && perm.resend && actionButton("resend", "Resend pass (email + SMS)", Send, { variant: "forest" })}
-              {r.status === "PENDING" && perm.verify && actionButton("verify_payment", "Re-check payment with Paystack", RefreshCw, { variant: "forest" })}
-              {r.status === "PENDING" && perm.offline && (
-                <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setAsking("mark_paid_offline")}>
-                  <Wallet className="h-4 w-4" /> Confirm cash / transfer payment
+            <div className="flex flex-col items-stretch gap-2 [&>*]:justify-start">
+              {registered && perm.resend && actionButton("resend", "Resend pass (email + SMS)", Send, { variant: "forest" })}
+              {registered && (
+                <Button asChild size="sm" variant="outline">
+                  <a href={`/admin/slips?id=${r.id}`} target="_blank" rel="noopener">
+                    <Printer className="h-4 w-4" /> Print registration slip
+                  </a>
                 </Button>
               )}
-              {paid && perm.edit &&
+              {r.status === "PENDING" && perm.edit && actionButton("confirm", "Confirm and issue pass", TicketCheck, { variant: "forest" })}
+              {registered && perm.edit &&
                 actionButton("regenerate_link", "Issue new pass link", Link2, {
-                  confirm: "Issue a new pass link? The climber's current QR code will stop working and the new pass is emailed and texted to them. Use this if their pass was shared or leaked.",
+                  confirm: "Issue a new pass link? The climber's current QR code — including any slip already printed — will stop working, and the new pass is emailed and texted to them. Use this if their pass was shared or leaked.",
                 })}
               {r.status === "CANCELLED" && perm.cancel && actionButton("reinstate", "Reinstate registration", RotateCcw)}
               {r.status !== "CANCELLED" && perm.cancel && (
@@ -338,7 +362,7 @@ export function RegistrationDetailView({ id }: { id: string }) {
                   <Ban className="h-4 w-4" /> Cancel registration
                 </Button>
               )}
-              {!perm.resend && !perm.verify && !perm.cancel && <p className="text-sm text-forest-900/60">Your role can only view this registration.</p>}
+              {!perm.resend && !perm.edit && !perm.cancel && <p className="text-sm text-forest-900/60">Your role can only view this registration.</p>}
             </div>
             {asking === "cancel" && (
               <ReasonForm
@@ -349,20 +373,6 @@ export function RegistrationDetailView({ id }: { id: string }) {
                 onCancel={() => setAsking(null)}
                 onSubmit={(reason) => act("cancel", { reason })}
               />
-            )}
-            {asking === "mark_paid_offline" && (
-              <ReasonForm
-                title={`Confirm ${formatNaira(r.amountKobo)} received outside Paystack?`}
-                label="Receipt number or note (who paid, how)"
-                cta="Confirm payment and issue pass"
-                onCancel={() => setAsking(null)}
-                onSubmit={(note) => act("mark_paid_offline", { note })}
-              />
-            )}
-            {paid && (
-              <p className="mt-4 flex items-start gap-2 text-xs text-forest-900/60">
-                <CreditCard className="mt-0.5 h-3.5 w-3.5 shrink-0" /> Refunds are made in the Paystack dashboard; cancel here so the pass stops working.
-              </p>
             )}
           </Section>
 

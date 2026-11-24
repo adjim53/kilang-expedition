@@ -6,7 +6,7 @@ export type Role = (typeof ROLES)[number];
 export const ROLE_INFO: Record<Role, { label: string; description: string }> = {
   ADMIN: {
     label: "Admin",
-    description: "Everything, including users, cancellations and offline payments.",
+    description: "Everything, including users, cancellations and donations.",
   },
   STAFF: {
     label: "Registration staff",
@@ -14,19 +14,18 @@ export const ROLE_INFO: Record<Role, { label: string; description: string }> = {
   },
   MARSHAL: {
     label: "Marshal",
-    description: "Scan passes and check climbers in at the medical checkup and the muster point.",
+    description: "Scan passes and record climbers at the medical checkup, the ascent start, the summit and back at base.",
   },
 };
 
 export type Permission =
-  | "checkin" // scan passes, search paid climbers, mark medical/muster
+  | "checkin" // scan passes, search climbers, record checkpoints, watch the summit tracker
   | "passes.resend"
-  | "registrations.view"
+  | "registrations.view" // includes printing registration slips
   | "registrations.edit"
   | "registrations.export"
-  | "payments.verify" // re-check a pending payment with Paystack
   | "registrations.cancel" // cancel / reinstate
-  | "payments.offline" // confirm cash or bank-transfer payment
+  | "donations.view" // see and export donations, re-check one with Paystack
   | "users.manage";
 
 const PERMISSIONS: Record<Role, readonly Permission[]> = {
@@ -36,9 +35,8 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "registrations.view",
     "registrations.edit",
     "registrations.export",
-    "payments.verify",
     "registrations.cancel",
-    "payments.offline",
+    "donations.view",
     "users.manage",
   ],
   STAFF: [
@@ -47,7 +45,6 @@ const PERMISSIONS: Record<Role, readonly Permission[]> = {
     "registrations.view",
     "registrations.edit",
     "registrations.export",
-    "payments.verify",
   ],
   MARSHAL: ["checkin", "passes.resend"],
 };

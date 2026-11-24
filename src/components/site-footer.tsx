@@ -60,6 +60,7 @@ export function SiteFooter() {
           <p className="eyebrow text-amber-400">Expedition</p>
           <ul className="mt-4 space-y-3 text-sm">
             <li><Link href="/#register" className="hover:text-white">Register to climb</Link></li>
+            <li><Link href="/#donate" className="hover:text-white">Donate</Link></li>
             <li><Link href="/#schedule" className="hover:text-white">Schedule</Link></li>
             <li><Link href="/#route" className="hover:text-white">Getting there</Link></li>
             <li><Link href="/waiver" className="hover:text-white">Safety waiver</Link></li>
@@ -73,7 +74,8 @@ export function SiteFooter() {
           <ul className="flex flex-wrap items-center justify-center gap-4">
             {BRAND.partners.map((p) => (
               <li key={p.name} className="rounded-xl bg-white px-4 py-3 shadow-md">
-                <Image src={p.src} alt={p.alt} width={p.width} height={p.height} sizes="180px" className="h-auto w-[180px]" />
+                {/* Same height for every logo, whatever its shape. */}
+                <Image src={p.src} alt={p.alt} width={p.width} height={p.height} sizes="200px" className="h-[104px] w-auto" />
               </li>
             ))}
           </ul>

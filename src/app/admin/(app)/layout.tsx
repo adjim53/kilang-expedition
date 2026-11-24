@@ -16,7 +16,11 @@ export default async function AdminAppLayout({ children }: { children: React.Rea
   const links: NavLink[] = [];
   if (user && !user.mustChangePassword) {
     if (can(user.role, "registrations.view")) links.push({ href: "/admin/registrations", label: "Registrations", icon: "registrations" });
-    if (can(user.role, "checkin")) links.push({ href: "/admin/checkin", label: "Check-in", icon: "checkin" });
+    if (can(user.role, "checkin")) {
+      links.push({ href: "/admin/checkin", label: "Check-in", icon: "checkin" });
+      links.push({ href: "/admin/tracker", label: "Summit tracker", icon: "tracker" });
+    }
+    if (can(user.role, "donations.view")) links.push({ href: "/admin/donations", label: "Donations", icon: "donations" });
     if (can(user.role, "users.manage")) links.push({ href: "/admin/users", label: "Users", icon: "users" });
   }
   if (user) links.push({ href: "/admin/account", label: "Account", icon: "account" });

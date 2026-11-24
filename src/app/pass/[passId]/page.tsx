@@ -14,6 +14,7 @@ import { getAdminUser } from "@/lib/admin-auth";
 import { can } from "@/lib/auth/roles";
 import { tokensMatch } from "@/lib/ids";
 import { toParticipant } from "@/lib/participants";
+import { formatWAT } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -27,22 +28,21 @@ export default async function PassPage({
   searchParams,
 }: {
   params: Promise<{ passId: string }>;
-  searchParams: Promise<{ t?: string }>;
+  searchParams: Promise<{ t?: string; new?: string }>;
 }) {
   const { passId } = await params;
-  const { t } = await searchParams;
+  const { t, new: justRegistered } = await searchParams;
 
   if (passId.length > 40) notFound();
   const registration = await prisma.registration.findUnique({
     where: { passId: passId.toUpperCase() },
-    include: { tier: true },
   });
 
   // The pass is private: without the secret token from the email link, it does not exist.
   if (
     !registration ||
     !registration.passId ||
-    (registration.status !== "PAID" && registration.status !== "CANCELLED") ||
+    (registration.status !== "REGISTERED" && registration.status !== "CANCELLED") ||
     !tokensMatch(t, registration.accessToken)
   ) {
     notFound();
@@ -55,6 +55,7 @@ export default async function PassPage({
 
   const qr = await qrSvg(passUrl(registration.passId, registration.accessToken));
   const qrDownload = `/api/pass/${registration.passId}/qr?t=${registration.accessToken}`;
+  const slip = `/pass/${registration.passId}/slip?t=${registration.accessToken}&print=1`;
 
   return (
     <>
@@ -70,7 +71,9 @@ export default async function PassPage({
           ) : (
             <p className="no-print mb-4 flex items-center gap-2 rounded-xl bg-forest-100 p-4 text-sm font-semibold text-forest-800">
               <CircleCheck className="h-5 w-5 shrink-0 text-forest-600" />
-              Payment confirmed. This is your pass — save it or print it.
+              {justRegistered
+                ? "You're registered. This is your pass — print your registration slip and bring it with you."
+                : "Registration confirmed. This is your pass — save it, or print your registration slip."}
             </p>
           )}
 
@@ -111,8 +114,8 @@ export default async function PassPage({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs font-bold uppercase tracking-wider text-forest-900/50">Ticket</dt>
-                <dd className="mt-0.5 font-bold text-forest-900">{registration.tier.name}</dd>
+                <dt className="text-xs font-bold uppercase tracking-wider text-forest-900/50">Registration</dt>
+                <dd className="mt-0.5 font-bold text-forest-900">Free · confirmed</dd>
               </div>
               <div>
                 <dt className="text-xs font-bold uppercase tracking-wider text-forest-900/50">Kit size</dt>
@@ -122,7 +125,11 @@ export default async function PassPage({
                 <Badge variant={registration.medicalCheckedAt ? "forest" : "sand"}>
                   {registration.medicalCheckedAt ? "Medically cleared" : "Medical checkup pending"}
                 </Badge>
-                {registration.musterCheckedAt && <Badge variant="gold">Checked in for ascent</Badge>}
+                {registration.musterCheckedAt && <Badge variant="gold">Started the ascent</Badge>}
+                {registration.summitReachedAt && (
+                  <Badge variant="forest">Summit reached {formatWAT(registration.summitReachedAt)}</Badge>
+                )}
+                {registration.descentCheckedAt && <Badge variant="soft">Back at base</Badge>}
               </div>
             </dl>
 
@@ -149,7 +156,7 @@ export default async function PassPage({
             </div>
           </article>
 
-          {!cancelled && <PassActions qrDownloadUrl={qrDownload} passId={registration.passId} />}
+          {!cancelled && <PassActions qrDownloadUrl={qrDownload} slipUrl={slip} passId={registration.passId} />}
 
           <p className="no-print mt-6 text-center text-sm text-forest-900/70">
             Keep this link private — anyone with it can show your pass.{" "}

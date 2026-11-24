@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   let database = false;
   try {
-    await prisma.ticketTier.count();
+    await prisma.registration.count();
     database = true;
   } catch (err) {
     console.error("[health] database check failed", err);

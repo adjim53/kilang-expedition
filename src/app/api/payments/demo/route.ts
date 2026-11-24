@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { confirmRegistration } from "@/lib/confirm";
+import { confirmDonation } from "@/lib/donations";
 import { demoPaymentsEnabled } from "@/lib/paystack";
 
 export const runtime = "nodejs";
 
 /**
- * DEVELOPMENT ONLY. Simulates a successful payment so the full flow can be
+ * DEVELOPMENT ONLY. Simulates a successful donation so the full flow can be
  * tested without Paystack keys. Returns 404 in production or once keys are set.
  */
 export async function POST(request: Request) {
@@ -15,14 +15,19 @@ export async function POST(request: Request) {
   const { reference } = (await request.json().catch(() => ({}))) as { reference?: string };
   if (!reference) return NextResponse.json({ error: "Missing reference." }, { status: 400 });
 
-  const registration = await prisma.registration.findUnique({ where: { reference } });
-  if (!registration) return NextResponse.json({ error: "Registration not found." }, { status: 404 });
+  const donation = await prisma.donation.findUnique({ where: { reference } });
+  if (!donation) return NextResponse.json({ error: "Donation not found." }, { status: 404 });
 
-  const result = await confirmRegistration(reference, {
+  const result = await confirmDonation(reference, {
     transactionId: `demo-${Date.now()}`,
-    amountKobo: registration.amountKobo,
+    amountKobo: donation.amountKobo,
   });
   if (!result.ok) return NextResponse.json({ error: "Could not confirm." }, { status: 500 });
 
-  return NextResponse.json({ passId: result.passId, passUrl: `/pass/${result.passId}?t=${result.accessToken}` });
+  return NextResponse.json({
+    received: true,
+    reference: result.donation.reference,
+    amountKobo: result.donation.amountKobo,
+    receiptSent: Boolean(result.donation.receiptSentAt),
+  });
 }

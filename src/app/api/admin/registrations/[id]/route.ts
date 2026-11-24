@@ -11,7 +11,7 @@ import { BLOOD_GROUPS, EXPERIENCE_LEVELS, GENOTYPES, KIT_SIZES } from "@/lib/val
 export const runtime = "nodejs";
 
 async function load(id: string) {
-  return prisma.registration.findUnique({ where: { id }, include: { tier: true } });
+  return prisma.registration.findUnique({ where: { id } });
 }
 
 async function history(id: string) {
@@ -43,9 +43,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     permissions: {
       edit: can(guard.user.role, "registrations.edit"),
       resend: can(guard.user.role, "passes.resend"),
-      verify: can(guard.user.role, "payments.verify"),
       cancel: can(guard.user.role, "registrations.cancel"),
-      offline: can(guard.user.role, "payments.offline"),
     },
   });
 }
@@ -96,7 +94,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ registration: toDetail(before), history: await history(id) });
   }
 
-  const updated = await prisma.registration.update({ where: { id }, data, include: { tier: true } });
+  const updated = await prisma.registration.update({ where: { id }, data });
   await audit(guard.user, "registration.edit", { registrationId: id }, changes);
   return NextResponse.json({ registration: toDetail(updated), history: await history(id) });
 }

@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Check, Loader2, Lock, TriangleAlert } from "lucide-react";
-import type { Tier } from "@/data/tiers";
+import { Loader2, QrCode, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
   BLOOD_GROUPS,
   EXPERIENCE_LABELS,
@@ -15,7 +13,7 @@ import {
   KIT_SIZES,
   registrationSchema,
 } from "@/lib/validation";
-import { cn, formatNaira } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { z } from "zod";
 
 type FormState = {
@@ -46,39 +44,8 @@ const EMPTY: FormState = {
   waiverAccepted: false,
 };
 
-type FieldErrors = Partial<Record<keyof FormState | "tierId", string>>;
-type Phase = "idle" | "saving" | "paying" | "verifying";
-
-type PaystackPopup = {
-  newTransaction(options: {
-    key: string;
-    email: string;
-    amount: number;
-    currency: string;
-    reference: string;
-    onSuccess: () => void;
-    onCancel: () => void;
-    onError?: (error: { message?: string }) => void;
-  }): void;
-};
-
-declare global {
-  interface Window {
-    PaystackPop?: new () => PaystackPopup;
-  }
-}
-
-function loadPaystack(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.PaystackPop) return resolve();
-    const script = document.createElement("script");
-    script.src = "https://js.paystack.co/v2/inline.js";
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("Could not load Paystack"));
-    document.body.appendChild(script);
-  });
-}
+type FieldErrors = Partial<Record<keyof FormState, string>>;
+type Phase = "idle" | "saving" | "opening";
 
 function Field({
   id,
@@ -111,16 +78,13 @@ function Field({
   );
 }
 
-export function RegistrationFlow({ tiers }: { tiers: Tier[] }) {
+export function RegistrationFlow() {
   const router = useRouter();
-  const [tierId, setTierId] = useState(tiers.find((t) => t.featured)?.id ?? tiers[0]?.id ?? "");
   const [form, setForm] = useState<FormState>(EMPTY);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [phase, setPhase] = useState<Phase>("idle");
   const [message, setMessage] = useState<string | null>(null);
-  const [pendingReference, setPendingReference] = useState<string | null>(null);
 
-  const tier = tiers.find((t) => t.id === tierId);
   const busy = phase !== "idle";
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -138,34 +102,11 @@ export function RegistrationFlow({ tiers }: { tiers: Tier[] }) {
     };
   }
 
-  async function finish(url: string, init?: RequestInit) {
-    setPhase("verifying");
-    setMessage(null);
-    try {
-      const res = await fetch(url, init);
-      const json = await res.json();
-      if (res.ok && json.passUrl) {
-        router.push(json.passUrl);
-        return;
-      }
-      setMessage(
-        json.error ??
-          "We received your payment but couldn't load your pass yet. It will also arrive by email and SMS.",
-      );
-    } catch {
-      setMessage(
-        "Your payment went through, but the connection dropped before we could show your pass. Tap “Check my payment” — you will not be charged again.",
-      );
-    }
-    setPhase("idle");
-  }
-
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
     setMessage(null);
-    setPendingReference(null);
 
-    const parsed = registrationSchema.safeParse({ ...form, tierId });
+    const parsed = registrationSchema.safeParse(form);
     if (!parsed.success) {
       const flat = z.flattenError(parsed.error).fieldErrors as Record<string, string[] | undefined>;
       const next: FieldErrors = {};
@@ -178,13 +119,6 @@ export function RegistrationFlow({ tiers }: { tiers: Tier[] }) {
     }
 
     setPhase("saving");
-    let checkout: {
-      reference: string;
-      email: string;
-      amountKobo: number;
-      mode: "paystack" | "demo";
-      publicKey: string | null;
-    };
     try {
       const res = await fetch("/api/register", {
         method: "POST",
@@ -192,128 +126,29 @@ export function RegistrationFlow({ tiers }: { tiers: Tier[] }) {
         body: JSON.stringify(parsed.data),
       });
       const json = await res.json();
-      if (!res.ok) {
-        if (json.fieldErrors) {
-          const next: FieldErrors = {};
-          for (const [key, value] of Object.entries(json.fieldErrors as Record<string, string[]>))
-            if (value?.[0]) next[key as keyof FieldErrors] = value[0];
-          setErrors(next);
-        }
-        setMessage(json.error ?? "Something went wrong. Please try again.");
-        setPhase("idle");
+      if (res.ok && json.passUrl) {
+        // Registered: the pass and QR code already exist. Show them.
+        setPhase("opening");
+        router.push(json.passUrl);
         return;
       }
-      checkout = json;
+      if (json.fieldErrors) {
+        const next: FieldErrors = {};
+        for (const [key, value] of Object.entries(json.fieldErrors as Record<string, string[]>))
+          if (value?.[0]) next[key as keyof FieldErrors] = value[0];
+        setErrors(next);
+      }
+      setMessage(json.error ?? "Something went wrong. Please try again.");
     } catch {
       setMessage("We couldn't reach the server. Check your connection and try again.");
-      setPhase("idle");
-      return;
     }
-
-    setPendingReference(checkout.reference);
-
-    // Local development without Paystack keys: simulate the payment.
-    if (checkout.mode === "demo") {
-      await finish("/api/payments/demo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference: checkout.reference }),
-      });
-      return;
-    }
-
-    try {
-      await loadPaystack();
-      setPhase("paying");
-      new window.PaystackPop!().newTransaction({
-        key: checkout.publicKey ?? "",
-        email: checkout.email,
-        amount: checkout.amountKobo,
-        currency: "NGN",
-        reference: checkout.reference,
-        onSuccess: () => {
-          void finish(`/api/payments/verify?reference=${encodeURIComponent(checkout.reference)}`);
-        },
-        onCancel: () => {
-          setPhase("idle");
-          setPendingReference(null);
-          setMessage("Payment cancelled. Your details are still here — pay when you're ready.");
-        },
-        onError: (error) => {
-          setPhase("idle");
-          setMessage(error?.message ?? "Paystack couldn't start the payment. Please try again.");
-        },
-      });
-    } catch {
-      setPhase("idle");
-      setMessage("We couldn't load the payment window. Check your connection and try again.");
-    }
+    setPhase("idle");
   }
 
   return (
     <div>
-      {/* ── Ticket tiers ─────────────────────────────────────────────── */}
-      <fieldset disabled={busy}>
-        <legend className="sr-only">Choose your ticket</legend>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {tiers.map((t) => {
-            const selected = t.id === tierId;
-            return (
-              <label
-                key={t.id}
-                className={cn(
-                  "relative flex cursor-pointer flex-col rounded-2xl border-2 bg-white p-6 transition sm:p-7",
-                  selected
-                    ? "border-forest-700 shadow-lift"
-                    : "border-sand-200 hover:border-forest-300",
-                )}
-              >
-                <input
-                  type="radio"
-                  name="tierId"
-                  value={t.id}
-                  checked={selected}
-                  onChange={() => setTierId(t.id)}
-                  className="sr-only"
-                />
-                <div className="flex items-start justify-between gap-3">
-                  <h3 className="text-2xl font-semibold leading-tight text-forest-900">{t.name}</h3>
-                  <span
-                    aria-hidden="true"
-                    className={cn(
-                      "mt-1 grid h-6 w-6 shrink-0 place-items-center rounded-full border-2",
-                      selected ? "border-forest-700 bg-forest-700 text-white" : "border-sand-300",
-                    )}
-                  >
-                    {selected && <Check className="h-3.5 w-3.5" strokeWidth={4} />}
-                  </span>
-                </div>
-                {t.featured && (
-                  <Badge variant="gold" className="mt-2 self-start">
-                    Most popular
-                  </Badge>
-                )}
-                <p className="mt-2 text-sm text-forest-900/70">{t.tagline}</p>
-                <p className="mt-5 font-display text-4xl font-semibold text-forest-700">
-                  {formatNaira(t.priceKobo)}
-                </p>
-                <ul className="mt-5 space-y-2 border-t border-sand-200 pt-5 text-sm text-forest-900/85">
-                  {t.perks.map((perk) => (
-                    <li key={perk} className="flex gap-2">
-                      <Check className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" strokeWidth={3} />
-                      {perk}
-                    </li>
-                  ))}
-                </ul>
-              </label>
-            );
-          })}
-        </div>
-        {errors.tierId && <p className="field-error">{errors.tierId}</p>}
-      </fieldset>
-
       {/* ── Climber details ──────────────────────────────────────────── */}
-      <form onSubmit={onSubmit} noValidate className="mt-8 rounded-2xl border border-sand-200 bg-white p-6 shadow-sm sm:p-10">
+      <form onSubmit={onSubmit} noValidate className="rounded-2xl border border-sand-200 bg-white p-6 shadow-sm sm:p-10">
         <h3 className="text-3xl font-semibold text-forest-900">Climber details</h3>
         <p className="mt-2 text-sm text-forest-900/70">
           One registration per climber. Your pass is sent to this email and phone number.
@@ -500,40 +335,24 @@ export function RegistrationFlow({ tiers }: { tiers: Tier[] }) {
         {message && (
           <div role="alert" className="mt-6 flex gap-3 rounded-xl bg-clay-500/10 p-4 text-sm font-medium text-clay-600">
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-            <div>
-              <p>{message}</p>
-              {pendingReference && phase === "idle" && (
-                <button
-                  type="button"
-                  className="mt-2 font-bold underline underline-offset-4"
-                  onClick={() =>
-                    void finish(`/api/payments/verify?reference=${encodeURIComponent(pendingReference)}`)
-                  }
-                >
-                  Check my payment
-                </button>
-              )}
-            </div>
+            <p>{message}</p>
           </div>
         )}
 
         <div className="mt-8 flex flex-col gap-4 border-t border-sand-200 pt-7 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-forest-900/70">{tier?.name ?? "Choose a ticket"}</p>
-            <p className="font-display text-3xl font-semibold text-forest-900">
-              {tier ? formatNaira(tier.priceKobo) : "—"}
-            </p>
+            <p className="text-sm font-semibold text-forest-900/70">Expedition registration</p>
+            <p className="font-display text-3xl font-semibold text-forest-900">Free</p>
           </div>
           <div className="sm:text-right">
-            <Button type="submit" size="lg" disabled={busy || !tier} className="w-full sm:w-auto">
+            <Button type="submit" size="lg" disabled={busy} className="w-full sm:w-auto">
               {busy && <Loader2 className="h-5 w-5 animate-spin" />}
-              {phase === "saving" && "Saving your details…"}
-              {phase === "paying" && "Waiting for payment…"}
-              {phase === "verifying" && "Confirming payment…"}
-              {phase === "idle" && "Pay & get my pass"}
+              {phase === "saving" && "Registering you…"}
+              {phase === "opening" && "Opening your pass…"}
+              {phase === "idle" && "Register & get my pass"}
             </Button>
             <p className="mt-2 flex items-center justify-center gap-1.5 text-xs font-semibold text-forest-900/60 sm:justify-end">
-              <Lock className="h-3.5 w-3.5" /> Secure payment in naira by Paystack
+              <QrCode className="h-3.5 w-3.5" /> Your QR pass and registration slip are issued instantly
             </p>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { DONATION_MAX_KOBO, DONATION_MIN_KOBO, DONOR_TYPES } from "@/data/donations";
 import { normalizeNigerianPhone } from "./utils";
 
 export const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-", "Not sure"] as const;
@@ -19,7 +20,6 @@ const phone = z
   .refine((v) => normalizeNigerianPhone(v) !== null, "Enter a valid Nigerian mobile number, e.g. 0803 190 7825");
 
 export const registrationSchema = z.object({
-  tierId: z.string().min(1, "Choose a ticket"),
   fullName: z.string().trim().min(3, "Enter your full name").max(100),
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
   phone,
@@ -35,3 +35,37 @@ export const registrationSchema = z.object({
 
 export type RegistrationInput = z.input<typeof registrationSchema>;
 export type RegistrationData = z.output<typeof registrationSchema>;
+
+// ── Donations ───────────────────────────────────────────────────────────────
+
+const naira = (kobo: number) => `₦${(kobo / 100).toLocaleString("en-NG")}`;
+
+const optionalPhone = z
+  .string()
+  .trim()
+  .optional()
+  .default("")
+  .refine((v) => v === "" || normalizeNigerianPhone(v) !== null, "Enter a valid Nigerian mobile number, or leave this blank");
+
+export const donationSchema = z
+  .object({
+    /** Whole naira, as typed. The server converts to kobo. */
+    amountNaira: z.coerce
+      .number({ error: "Enter an amount" })
+      .int("Enter a whole number of naira")
+      .min(DONATION_MIN_KOBO / 100, `The smallest donation is ${naira(DONATION_MIN_KOBO)}`)
+      .max(DONATION_MAX_KOBO / 100, `For donations above ${naira(DONATION_MAX_KOBO)}, please contact the organisers`),
+    donorType: z.enum(DONOR_TYPES, { error: "Tell us who is giving" }),
+    donorName: z.string().trim().min(3, "Enter your name").max(100),
+    organisation: z.string().trim().max(150).optional().default(""),
+    email: z.string().trim().toLowerCase().email("Enter a valid email address").max(200),
+    phone: optionalPhone,
+    message: z.string().trim().max(500, "Keep this under 500 characters").optional().default(""),
+  })
+  .refine((d) => d.donorType !== "PARTNER" || d.organisation.length >= 2, {
+    path: ["organisation"],
+    message: "Enter the organisation's name",
+  });
+
+export type DonationInput = z.input<typeof donationSchema>;
+export type DonationData = z.output<typeof donationSchema>;

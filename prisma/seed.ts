@@ -1,13 +1,10 @@
 /**
  * Seed script.
- *   npm run db:seed        → ticket tiers only (safe for production)
- *   npm run db:seed:demo   → tiers + a few clearly fake participants for testing
+ *   npm run db:seed        → nothing to seed (registration is free; there are no ticket tiers)
+ *   npm run db:seed:demo   → a few clearly fake participants and donations for testing
  */
 import "dotenv/config";
 import { createPrismaClient } from "../src/lib/prisma";
-import { DEFAULT_TIERS } from "../src/data/tiers";
-
-const prisma = createPrismaClient();
 
 const DEMO_PARTICIPANTS = [
   {
@@ -15,7 +12,6 @@ const DEMO_PARTICIPANTS = [
     fullName: "Demo Climber One",
     email: "demo.one@example.com",
     phone: "2348030000001",
-    tierId: "standard",
     bloodGroup: "O+",
     genotype: "AA",
     experience: "BEGINNER",
@@ -28,7 +24,6 @@ const DEMO_PARTICIPANTS = [
     fullName: "Demo Climber Two",
     email: "demo.two@example.com",
     phone: "2348030000002",
-    tierId: "vip",
     bloodGroup: "A+",
     genotype: "AS",
     experience: "INTERMEDIATE",
@@ -41,7 +36,6 @@ const DEMO_PARTICIPANTS = [
     fullName: "Demo Student Three",
     email: "demo.three@example.com",
     phone: "2348030000003",
-    tierId: "student",
     bloodGroup: "B+",
     genotype: "AA",
     experience: "PRO",
@@ -51,34 +45,28 @@ const DEMO_PARTICIPANTS = [
   },
 ];
 
-async function main() {
-  for (const tier of DEFAULT_TIERS) {
-    const data = {
-      name: tier.name,
-      tagline: tier.tagline,
-      priceKobo: tier.priceKobo,
-      perks: JSON.stringify(tier.perks),
-      featured: tier.featured,
-      sortOrder: tier.sortOrder,
-      active: true,
-    };
-    await prisma.ticketTier.upsert({ where: { id: tier.id }, update: data, create: { id: tier.id, ...data } });
-  }
-  console.log(`Seeded ${DEFAULT_TIERS.length} ticket tiers.`);
+const DEMO_DONATIONS = [
+  { reference: "DEMO-DONATION-1", donorType: "INDIVIDUAL", donorName: "Demo Well-Wisher", organisation: null, amountKobo: 10_000_00 },
+  { reference: "DEMO-DONATION-2", donorType: "PARTNER", donorName: "Demo Contact", organisation: "Demo Partner Ltd", amountKobo: 250_000_00 },
+];
 
-  if (process.argv.includes("--demo")) {
+async function main() {
+  if (!process.argv.includes("--demo")) {
+    console.log("Nothing to seed: registration is free and there are no ticket tiers.");
+    return;
+  }
+
+  const prisma = createPrismaClient();
+  try {
     for (const [i, p] of DEMO_PARTICIPANTS.entries()) {
-      const tier = DEFAULT_TIERS.find((t) => t.id === p.tierId)!;
       const { medicalChecked, passId, ...fields } = p;
       const data = {
         ...fields,
         passId,
-        status: "PAID",
-        amountKobo: tier.priceKobo,
+        status: "REGISTERED",
         nextOfKinName: "Demo Next Of Kin",
         nextOfKinPhone: "2348030000009",
         waiverAcceptedAt: new Date(),
-        paidAt: new Date(),
         medicalCheckedAt: medicalChecked ? new Date() : null,
       };
       await prisma.registration.upsert({
@@ -88,12 +76,18 @@ async function main() {
       });
     }
     console.log(`Seeded ${DEMO_PARTICIPANTS.length} demo participants.`);
+
+    for (const d of DEMO_DONATIONS) {
+      const data = { ...d, email: "demo.donor@example.com", status: "PAID", paidAt: new Date(), paystackTxId: "demo-seed" };
+      await prisma.donation.upsert({ where: { reference: d.reference }, update: data, create: data });
+    }
+    console.log(`Seeded ${DEMO_DONATIONS.length} demo donations.`);
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
-main()
-  .catch((err) => {
-    console.error(err);
-    process.exit(1);
-  })
-  .finally(() => prisma.$disconnect());
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

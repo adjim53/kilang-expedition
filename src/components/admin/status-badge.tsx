@@ -1,9 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 
 const STYLES: Record<string, { label: string; variant: "forest" | "sand" | "warn" | "gold" | "soft" }> = {
-  PAID: { label: "Paid", variant: "forest" },
-  PENDING: { label: "Awaiting payment", variant: "sand" },
-  FAILED: { label: "Payment failed", variant: "warn" },
+  REGISTERED: { label: "Registered", variant: "forest" },
+  // Only on rows from before registration became free.
+  PENDING: { label: "Not confirmed", variant: "sand" },
   CANCELLED: { label: "Cancelled", variant: "warn" },
 };
 

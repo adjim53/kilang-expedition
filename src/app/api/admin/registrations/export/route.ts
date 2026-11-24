@@ -13,7 +13,6 @@ export async function GET(request: Request) {
   const filters = filtersFromSearchParams(new URL(request.url).searchParams);
   const rows = await prisma.registration.findMany({
     where: whereFor(filters),
-    include: { tier: true },
     orderBy: { createdAt: "asc" },
     take: 10_000,
   });
