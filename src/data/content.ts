@@ -213,3 +213,178 @@ export const GALLERY: GalleryItem[] = [
     span: "wide",
   },
 ];
+
+/**
+ * Photos and films from previous expeditions (files live in /public/gallery).
+ * To add more: drop the file in /public/gallery and add an entry here.
+ *   size:  "feature" = large landscape, "wide" = landscape strip, "tall" = portrait
+ *   focus: optional CSS object-position to keep the subject in frame on the tile
+ */
+export type MediaItem = {
+  id: string;
+  kind: "photo" | "video";
+  title: string;
+  caption: string;
+  /** Describes the picture for screen readers. */
+  alt: string;
+  src: string;
+  /** Still frame shown before a video plays. */
+  poster?: string;
+  width: number;
+  height: number;
+  /** Video length in seconds. */
+  duration?: number;
+  size: "feature" | "wide" | "tall";
+  focus?: string;
+};
+
+export const PAST_MEDIA: MediaItem[] = [
+  {
+    id: "p-summit-team",
+    kind: "photo",
+    title: "Standing on the summit",
+    caption: "A team gathers on the summit rocks, the plains of Kaltungo far below.",
+    alt: "Seven climbers standing together on the rocky summit, one holding a tall staff.",
+    src: "/gallery/summit-team.jpg",
+    width: 1080,
+    height: 810,
+    size: "feature",
+  },
+  {
+    id: "p-above-the-valley",
+    kind: "photo",
+    title: "Above the valley",
+    caption: "A pause on the upper slopes, with the valley falling away behind.",
+    alt: "A climber in a blue shirt and sunglasses posing on the rocky upper slope.",
+    src: "/gallery/above-the-valley.jpg",
+    width: 720,
+    height: 908,
+    size: "tall",
+    focus: "50% 20%",
+  },
+  {
+    id: "p-joy-at-the-top",
+    kind: "photo",
+    title: "Joy at the top",
+    caption: "Applause on the summit: the reward for every step of the climb.",
+    alt: "A climber in a yellow shirt clapping on the summit under a clear blue sky.",
+    src: "/gallery/joy-at-the-top.jpg",
+    width: 810,
+    height: 1080,
+    size: "tall",
+    focus: "50% 25%",
+  },
+  {
+    id: "p-rock-scramble",
+    kind: "photo",
+    title: "The rock scramble",
+    caption: "Hands and feet on the steep rock section below the summit.",
+    alt: "Climbers pulling themselves up a steep rock face.",
+    src: "/gallery/rock-scramble.jpg",
+    width: 810,
+    height: 1080,
+    size: "tall",
+  },
+  {
+    id: "p-friends-on-the-trail",
+    kind: "photo",
+    title: "Friends on the trail",
+    caption: "Expedition colours on the grassy lower slopes as the ascent begins.",
+    alt: "Four hikers smiling on a grassy trail, one in a red Kilang Mountain Expedition shirt.",
+    src: "/gallery/friends-on-the-trail.jpg",
+    width: 709,
+    height: 474,
+    size: "wide",
+    focus: "50% 30%",
+  },
+  {
+    id: "p-foot-of-kilang",
+    kind: "photo",
+    title: "At the foot of Kilang",
+    caption: "Setting out among the palms, with the hills waiting ahead.",
+    alt: "A climber in a blue shirt with a backpack at the foot of the mountain.",
+    src: "/gallery/foot-of-kilang.jpg",
+    width: 720,
+    height: 919,
+    size: "tall",
+    focus: "50% 20%",
+  },
+  {
+    id: "p-gathering",
+    kind: "photo",
+    title: "Gathering before the climb",
+    caption: "Climbers and the community meet in the shade before setting off.",
+    alt: "Two smiling participants in front of a crowd gathered under a large tree.",
+    src: "/gallery/gathering-before-the-climb.jpg",
+    width: 1080,
+    height: 810,
+    size: "wide",
+    focus: "50% 8%",
+  },
+  {
+    id: "v-through-the-boulders",
+    kind: "video",
+    title: "Up through the boulders",
+    caption: "Climbers pick their way up the boulder field on the way to the summit.",
+    alt: "Climbers working their way up between large boulders.",
+    src: "/gallery/through-the-boulders.mp4",
+    poster: "/gallery/through-the-boulders-poster.jpg",
+    width: 640,
+    height: 360,
+    duration: 33,
+    size: "feature",
+  },
+  {
+    id: "v-smiles-at-the-summit",
+    kind: "video",
+    title: "Smiles at the summit",
+    caption: "Greetings and laughter among the crowd at the top of Kilang.",
+    alt: "A smiling man in a woollen cap on the summit with climbers behind him.",
+    src: "/gallery/smiles-at-the-summit.mp4",
+    poster: "/gallery/smiles-at-the-summit-poster.jpg",
+    width: 360,
+    height: 640,
+    duration: 41,
+    size: "tall",
+    focus: "50% 30%",
+  },
+  {
+    id: "v-the-final-ascent",
+    kind: "video",
+    title: "The final ascent",
+    caption: "A climber's-eye view of the steep last stretch and the land below.",
+    alt: "A climber in a white cap scrambling up steep rock high above the plains.",
+    src: "/gallery/the-final-ascent.mp4",
+    poster: "/gallery/the-final-ascent-poster.jpg",
+    width: 360,
+    height: 640,
+    duration: 128,
+    size: "tall",
+  },
+  {
+    id: "v-arriving-at-the-top",
+    kind: "video",
+    title: "Arriving at the top",
+    caption: "The line of climbers files onto the summit ridge to join the crowd.",
+    alt: "A large crowd of climbers gathered on the rocky summit ridge.",
+    src: "/gallery/arriving-at-the-top.mp4",
+    poster: "/gallery/arriving-at-the-top-poster.jpg",
+    width: 640,
+    height: 368,
+    duration: 29,
+    size: "feature",
+  },
+  {
+    id: "v-summit-celebration",
+    kind: "video",
+    title: "Celebration on the summit",
+    caption: "Song and dance on the peak as climbers celebrate reaching the top.",
+    alt: "Climbers dancing together on the summit.",
+    src: "/gallery/summit-celebration.mp4",
+    poster: "/gallery/summit-celebration-poster.jpg",
+    width: 640,
+    height: 368,
+    duration: 18,
+    size: "feature",
+  },
+];

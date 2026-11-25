@@ -3,6 +3,7 @@ import { Aperture, Camera, Clapperboard, MessagesSquare, Music2, Play, Users } f
 import { GALLERY, type GalleryItem } from "@/data/content";
 import { CONTACT } from "@/data/event";
 import { Reveal } from "@/components/reveal";
+import { MediaGallery } from "@/components/sections/media-gallery";
 import { Topo } from "@/components/topo";
 import { cn } from "@/lib/utils";
 
@@ -87,16 +88,24 @@ export function Gallery() {
     <section id="gallery" className="section bg-forest-900 text-white">
       <div className="container">
         <Reveal>
-          <p className="eyebrow text-amber-400">Gallery &amp; social</p>
+          <p className="eyebrow text-amber-400">Gallery</p>
           <h2 className="section-title mt-3">See the mountain.</h2>
           <p className="mt-4 max-w-2xl text-lg leading-relaxed text-forest-100">
-            Reels, clips, threads and films from the trail. Follow{" "}
-            <strong className="text-amber-400">{CONTACT.handle}</strong> and tag us to be featured.
+            Photographs and films from previous expeditions: the gathering, the scramble and the
+            celebration on the summit. Follow <strong className="text-amber-400">{CONTACT.handle}</strong>{" "}
+            and tag us to be featured.
           </p>
         </Reveal>
 
         <Reveal delay={0.1}>
-          <div className="mt-10 grid auto-rows-[220px] gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <MediaGallery />
+        </Reveal>
+
+        <Reveal delay={0.1}>
+          <h3 className="mt-14 border-b border-white/15 pb-3 font-display text-2xl font-semibold">
+            Follow the expedition
+          </h3>
+          <div className="mt-5 grid auto-rows-[220px] gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {GALLERY.map((item) => (
               <Tile key={item.id} item={item} />
             ))}
